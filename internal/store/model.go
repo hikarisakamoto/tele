@@ -26,6 +26,14 @@ type MessageEntity struct {
 	Length int
 }
 
+type PhotoRef struct {
+	ID            int64
+	AccessHash    int64
+	FileReference []byte
+	DCID          int
+	ThumbSize     string // e.g. "m" (320px), "s" (100px)
+}
+
 type Chat struct {
 	ID              int64
 	Title           string
@@ -46,6 +54,7 @@ type Message struct {
 	Date       time.Time
 	IsOut      bool
 	Entities   []MessageEntity
+	Photo      *PhotoRef // nil if message has no photo
 }
 
 type EventKind int

@@ -2,6 +2,11 @@ package ui
 
 import (
 	"context"
+	"image"
+	"image/jpeg"
+	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -33,9 +38,14 @@ const (
 // borderSize is the number of characters each border side adds (1 per side = 2 total per axis).
 const borderSize = 1
 
-type chatHistoryMsg struct {
-	chatID   int64
-	messages []store.Message
+type ChatHistoryMsg struct {
+	ChatID   int64
+	Messages []store.Message
+}
+
+type PhotoReadyMsg struct {
+	PhotoID int64
+	Image   image.Image
 }
 
 type markReadDoneMsg struct {
@@ -70,10 +80,11 @@ type RootModel struct {
 	currentChatID int64
 	historyLimit  int
 	verbose       bool
-	searchModel          *screens.SearchModel
-	onChatOpen           func(int64)
-	nextSentinel         int
-	chatListPendingKey   string
+	imageCache         map[int64]image.Image
+	searchModel        *screens.SearchModel
+	onChatOpen         func(int64)
+	nextSentinel       int
+	chatListPendingKey string
 }
 
 func NewRootModel(client internaltg.Client, st store.Store, historyLimit int, verbose bool) RootModel {
@@ -89,6 +100,7 @@ func NewRootModel(client internaltg.Client, st store.Store, historyLimit int, ve
 		st:           st,
 		historyLimit: historyLimit,
 		verbose:      verbose,
+		imageCache:   make(map[int64]image.Image),
 	}
 }
 
@@ -161,6 +173,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.st != nil {
 			m.chat.SetMessages(m.st.Messages(msg.Chat.ID))
 		}
+		m.chat.SetKnownImages(m.imageCache)
 		m.focus = FocusChat
 		m.chatList.SetFocused(false)
 		m.chat.SetFocused(true)
@@ -174,22 +187,22 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if err != nil {
 					return nil
 				}
-				return chatHistoryMsg{chatID: chatID, messages: msgs}
+				return ChatHistoryMsg{ChatID: chatID, Messages: msgs}
 			}
 		}
 		return m, nil
 
-	case chatHistoryMsg:
+	case ChatHistoryMsg:
 		if m.st != nil {
-			m.st.SetMessages(msg.chatID, msg.messages)
-			if msg.chatID == m.currentChatID {
-				m.chat.SetMessages(m.st.Messages(msg.chatID))
-				if chat, ok := m.st.GetChat(msg.chatID); ok && chat.UnreadCount > 0 {
+			m.st.SetMessages(msg.ChatID, msg.Messages)
+			if msg.ChatID == m.currentChatID {
+				m.chat.SetMessages(m.st.Messages(msg.ChatID))
+				if chat, ok := m.st.GetChat(msg.ChatID); ok && chat.UnreadCount > 0 {
 					m.chat.ScrollToFirstUnread(chat.ReadInboxMaxID)
 				}
 			}
 		}
-		return m, m.markReadCmd()
+		return m, tea.Batch(m.markReadCmd(), m.pendingDownloadCmds(msg.Messages))
 
 	case markReadDoneMsg:
 		if m.st != nil {
@@ -227,6 +240,17 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			combined := append(msg.messages, existing...)
 			m.st.SetMessages(msg.chatID, combined)
 			m.chat.PrependMessages(msg.messages) // preserves viewport position
+		}
+		return m, nil
+
+	case PhotoReadyMsg:
+		m.imageCache[msg.PhotoID] = msg.Image
+		m.chat.SetImage(msg.PhotoID, msg.Image)
+		return m, nil
+
+	case screens.OpenPhotoMsg:
+		if img, ok := m.imageCache[msg.PhotoID]; ok {
+			go openInViewer(img)
 		}
 		return m, nil
 
@@ -406,6 +430,51 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func openInViewer(img image.Image) {
+	f, err := os.CreateTemp("", "tele-photo-*.jpg")
+	if err != nil {
+		return
+	}
+	name := f.Name()
+	if err := jpeg.Encode(f, img, nil); err != nil {
+		f.Close()
+		os.Remove(name)
+		return
+	}
+	f.Close()
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", name)
+	default:
+		cmd = exec.Command("xdg-open", name)
+	}
+	_ = cmd.Start()
+}
+
+func downloadPhotoCmd(client internaltg.Client, ref store.PhotoRef) tea.Cmd {
+	return func() tea.Msg {
+		img, err := client.DownloadPhoto(context.Background(), ref)
+		if err != nil {
+			return nil
+		}
+		return PhotoReadyMsg{PhotoID: ref.ID, Image: img}
+	}
+}
+
+func (m RootModel) pendingDownloadCmds(msgs []store.Message) tea.Cmd {
+	var cmds []tea.Cmd
+	for _, msg := range msgs {
+		if msg.Photo != nil {
+			if _, ok := m.imageCache[msg.Photo.ID]; !ok {
+				cmds = append(cmds, downloadPhotoCmd(m.tgClient, *msg.Photo))
+			}
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m RootModel) markReadCmd() tea.Cmd {

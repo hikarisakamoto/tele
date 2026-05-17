@@ -2,6 +2,7 @@ package tg_test
 
 import (
 	"context"
+	"image"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,10 @@ func (m *mockClient) SendMessage(_ context.Context, _ store.Peer, text string) (
 }
 
 func (m *mockClient) MarkRead(_ context.Context, _ store.Peer, _ int) error { return nil }
+
+func (m *mockClient) DownloadPhoto(_ context.Context, _ store.PhotoRef) (image.Image, error) {
+	return nil, nil
+}
 
 func (m *mockClient) Updates() <-chan store.Event {
 	return m.events

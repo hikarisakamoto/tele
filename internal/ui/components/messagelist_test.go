@@ -2,11 +2,13 @@ package components_test
 
 import (
 	"fmt"
+	"image"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/sorokin-vladimir/tele/internal/store"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
 )
@@ -228,4 +230,32 @@ func TestMessageList_View_RendersEntityStyledText(t *testing.T) {
 	ml.SetMessages(msgs)
 	view := ml.View()
 	assert.Contains(t, stripANSI(view), "hello")
+}
+
+func TestMessageList_PhotoPlaceholderInView(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	msg := store.Message{
+		ID:    1,
+		Photo: &store.PhotoRef{ID: 42},
+	}
+	ml.SetMessages([]store.Message{msg})
+	view := ml.View()
+	require.Contains(t, view, "[ photo ]", "should show placeholder when image not loaded")
+}
+
+func TestMessageList_SetImage_UpdatesView(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	msg := store.Message{
+		ID:    1,
+		Photo: &store.PhotoRef{ID: 99},
+	}
+	ml.SetMessages([]store.Message{msg})
+	before := ml.View()
+
+	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	ml.SetImage(99, img)
+	after := ml.View()
+
+	require.NotContains(t, after, "[ photo ]", "placeholder should be gone after image loaded")
+	require.Greater(t, len(after), len(before), "view should grow with actual art lines")
 }

@@ -177,3 +177,37 @@ func TestExtractSentMessageID_MultipleUpdates_MatchesCorrectOne(t *testing.T) {
 	}
 	assert.Equal(t, 22, extractSentMessageID(updates, int64(222)))
 }
+
+func TestConvertMessage_WithPhoto(t *testing.T) {
+	raw := &tg.Message{
+		ID:   101,
+		Out:  false,
+		Date: 1700000000,
+		Media: &tg.MessageMediaPhoto{
+			Photo: &tg.Photo{
+				ID:            555,
+				AccessHash:    777,
+				FileReference: []byte{0xAA, 0xBB},
+				DCID:          2,
+				Sizes: []tg.PhotoSizeClass{
+					&tg.PhotoSize{Type: "s", W: 100, H: 100},
+					&tg.PhotoSize{Type: "m", W: 320, H: 240},
+				},
+			},
+		},
+	}
+	msg, ok := convertMessage(raw, 10)
+	require.True(t, ok)
+	require.NotNil(t, msg.Photo)
+	require.Equal(t, int64(555), msg.Photo.ID)
+	require.Equal(t, int64(777), msg.Photo.AccessHash)
+	require.Equal(t, []byte{0xAA, 0xBB}, msg.Photo.FileReference)
+	require.Equal(t, "m", msg.Photo.ThumbSize)
+}
+
+func TestConvertMessage_NoPhoto(t *testing.T) {
+	raw := &tg.Message{ID: 1, Date: 1700000000, Message: "hello"}
+	msg, ok := convertMessage(raw, 10)
+	require.True(t, ok)
+	require.Nil(t, msg.Photo)
+}

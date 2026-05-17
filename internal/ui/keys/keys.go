@@ -53,6 +53,7 @@ func DefaultKeyMap() KeyMap {
 			"i":   ActionInsert,
 			"a":   ActionInsert,
 			"esc": ActionNormal,
+			"o":   ActionOpenPhoto,
 		},
 	}
 }

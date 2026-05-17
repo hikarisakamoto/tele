@@ -2,6 +2,7 @@ package ui_test
 
 import (
 	"context"
+	"image"
 	"testing"
 	"time"
 
@@ -30,6 +31,9 @@ func (m *mockTGClient) SendMessage(_ context.Context, _ store.Peer, _ string) (i
 	return 42, nil
 }
 func (m *mockTGClient) MarkRead(_ context.Context, _ store.Peer, _ int) error { return nil }
+func (m *mockTGClient) DownloadPhoto(_ context.Context, _ store.PhotoRef) (image.Image, error) {
+	return nil, nil
+}
 func (m *mockTGClient) Updates() <-chan store.Event { return make(chan store.Event) }
 
 var _ internaltg.Client = (*mockTGClient)(nil)
@@ -291,6 +295,29 @@ func TestRoot_Send_FailedSendRemovesSentinel(t *testing.T) {
 
 	msgs := st.Messages(1)
 	assert.Empty(t, msgs, "sentinel should be removed when send fails")
+}
+
+func TestRootModel_PhotoDownloadDispatchedOnHistory(t *testing.T) {
+	mock := &mockTGClient{}
+	m, _ := newRootWithOpenChat(t, mock)
+	m2, cmd := m.Update(ui.ChatHistoryMsg{
+		ChatID: 1,
+		Messages: []store.Message{
+			{ID: 10, ChatID: 1, Text: "hello"},
+			{ID: 11, ChatID: 1, Photo: &store.PhotoRef{ID: 77, ThumbSize: "m"}},
+		},
+	})
+	_ = m2
+	require.NotNil(t, cmd, "should return cmd (download + markread) for messages with photo")
+}
+
+func TestRootModel_PhotoReadyMsg_StoresImage(t *testing.T) {
+	mock := &mockTGClient{}
+	m, _ := newRootWithOpenChat(t, mock)
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	m2, _ := m.Update(ui.PhotoReadyMsg{PhotoID: 55, Image: img})
+	_ = m2
+	// No panic — image cache updated without crashing
 }
 
 func TestRoot_Send_ConcurrentSentinelsHaveDistinctIDs(t *testing.T) {

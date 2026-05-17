@@ -1,6 +1,8 @@
 package screens
 
 import (
+	"image"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/sorokin-vladimir/tele/internal/store"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
@@ -11,6 +13,10 @@ import (
 type SendMsgRequest struct {
 	Peer store.Peer
 	Text string
+}
+
+type OpenPhotoMsg struct {
+	PhotoID int64
 }
 
 type LoadMoreMsg struct {
@@ -54,8 +60,10 @@ func (m *ChatModel) SetChat(chat *store.Chat) {
 		m.msgList.SetOutboxReadMaxID(0)
 	}
 }
-func (m *ChatModel) SetMessages(msgs []store.Message)      { m.msgList.SetMessages(msgs) }
-func (m *ChatModel) PrependMessages(older []store.Message) { m.msgList.PrependMessages(older) }
+func (m *ChatModel) SetMessages(msgs []store.Message)                  { m.msgList.SetMessages(msgs) }
+func (m *ChatModel) PrependMessages(older []store.Message)             { m.msgList.PrependMessages(older) }
+func (m *ChatModel) SetImage(photoID int64, img image.Image)           { m.msgList.SetImage(photoID, img) }
+func (m *ChatModel) SetKnownImages(cache map[int64]image.Image)        { m.msgList.SetKnownImages(cache) }
 func (m *ChatModel) SetOutboxReadMaxID(id int)             { m.msgList.SetOutboxReadMaxID(id) }
 func (m *ChatModel) ScrollToFirstUnread(readMaxID int) bool { return m.msgList.ScrollToFirstUnread(readMaxID) }
 func (m *ChatModel) VisibleReadMaxID() int                  { return m.msgList.VisibleReadMaxID() }
@@ -133,6 +141,12 @@ func (m *ChatModel) Update(msg tea.Msg) (layout.Pane, tea.Cmd) {
 			m.composerFocused = true
 			m.vimState.Mode = keys.ModeInsert
 			m.composer.Focus()
+		case keys.ActionOpenPhoto:
+			photoID := m.msgList.LastVisiblePhotoID()
+			if photoID != 0 {
+				id := photoID
+				return m, func() tea.Msg { return OpenPhotoMsg{PhotoID: id} }
+			}
 		}
 		return m, nil
 

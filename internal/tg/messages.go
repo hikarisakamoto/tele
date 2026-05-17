@@ -164,6 +164,27 @@ func parseHistory(result tg.MessagesMessagesClass, chatID int64) []store.Message
 	return out
 }
 
+// pickThumbSize returns the best thumb type string for inline display.
+// Prefers "m" (320px), then largest available PhotoSize by area.
+func pickThumbSize(sizes []tg.PhotoSizeClass) string {
+	for _, s := range sizes {
+		if ps, ok := s.(*tg.PhotoSize); ok && ps.Type == "m" {
+			return "m"
+		}
+	}
+	best := ""
+	bestArea := 0
+	for _, s := range sizes {
+		if ps, ok := s.(*tg.PhotoSize); ok {
+			if ps.W*ps.H > bestArea {
+				bestArea = ps.W * ps.H
+				best = ps.Type
+			}
+		}
+	}
+	return best
+}
+
 func convertMessage(raw tg.MessageClass, chatID int64) (store.Message, bool) {
 	msg, ok := raw.(*tg.Message)
 	if !ok {
@@ -173,7 +194,7 @@ func convertMessage(raw tg.MessageClass, chatID int64) (store.Message, bool) {
 	if from, ok := msg.FromID.(*tg.PeerUser); ok {
 		senderID = from.UserID
 	}
-	return store.Message{
+	out := store.Message{
 		ID:       msg.ID,
 		ChatID:   chatID,
 		SenderID: senderID,
@@ -181,7 +202,22 @@ func convertMessage(raw tg.MessageClass, chatID int64) (store.Message, bool) {
 		Date:     time.Unix(int64(msg.Date), 0),
 		IsOut:    msg.Out,
 		Entities: convertEntities(msg.Entities),
-	}, true
+	}
+	if media, ok := msg.Media.(*tg.MessageMediaPhoto); ok {
+		if photo, ok := media.Photo.(*tg.Photo); ok && len(photo.Sizes) > 0 {
+			thumb := pickThumbSize(photo.Sizes)
+			if thumb != "" {
+				out.Photo = &store.PhotoRef{
+					ID:            photo.ID,
+					AccessHash:    photo.AccessHash,
+					FileReference: photo.FileReference,
+					DCID:          photo.DCID,
+					ThumbSize:     thumb,
+				}
+			}
+		}
+	}
+	return out, true
 }
 
 func extractSentMessageID(updates tg.UpdatesClass, randomID int64) int {

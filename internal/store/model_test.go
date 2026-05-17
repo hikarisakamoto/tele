@@ -38,3 +38,18 @@ func TestMessage_HasEntitiesField(t *testing.T) {
 	assert.Equal(t, 0, msg.Entities[0].Offset)
 	assert.Equal(t, 6, msg.Entities[0].Length)
 }
+
+func TestMessage_PhotoField(t *testing.T) {
+	m := store.Message{
+		Photo: &store.PhotoRef{
+			ID:            42,
+			AccessHash:    99,
+			FileReference: []byte{1, 2, 3},
+			DCID:          2,
+			ThumbSize:     "m",
+		},
+	}
+	require.NotNil(t, m.Photo)
+	require.Equal(t, int64(42), m.Photo.ID)
+	require.Equal(t, "m", m.Photo.ThumbSize)
+}

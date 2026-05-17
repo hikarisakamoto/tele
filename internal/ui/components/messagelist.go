@@ -1,11 +1,13 @@
 package components
 
 import (
+	"image"
 	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/sorokin-vladimir/tele/internal/store"
+	"github.com/sorokin-vladimir/tele/internal/ui/media"
 )
 
 var (
@@ -24,10 +26,42 @@ type MessageList struct {
 	viewWidth       int
 	isGroup         bool
 	outboxReadMaxID int
+	images          map[int64]image.Image
 }
 
 func NewMessageList(height, width int) *MessageList {
-	return &MessageList{viewHeight: height, viewWidth: width}
+	return &MessageList{
+		viewHeight: height,
+		viewWidth:  width,
+		images:     make(map[int64]image.Image),
+	}
+}
+
+// SetImage caches a downloaded photo for rendering.
+func (ml *MessageList) SetImage(photoID int64, img image.Image) {
+	ml.images[photoID] = img
+}
+
+// SetKnownImages bulk-loads images from an external cache.
+func (ml *MessageList) SetKnownImages(cache map[int64]image.Image) {
+	for id, img := range cache {
+		ml.images[id] = img
+	}
+}
+
+func (ml *MessageList) photoContentCols() int {
+	maxBubbleW := ml.viewWidth * 3 / 4
+	if maxBubbleW < 10 {
+		maxBubbleW = 10
+	}
+	maxContentW := maxBubbleW - 4
+	if maxContentW > 60 {
+		maxContentW = 60
+	}
+	if maxContentW < 4 {
+		maxContentW = 4
+	}
+	return maxContentW
 }
 
 func (ml *MessageList) SetSize(width, height int) {
@@ -115,6 +149,20 @@ func (ml *MessageList) VisibleReadMaxID() int {
 		linesUsed += visibleLines
 	}
 	return maxID
+}
+
+// LastVisiblePhotoID returns the photo ID of the first photo-bearing message
+// visible in the current viewport, or 0 if none is visible.
+func (ml *MessageList) LastVisiblePhotoID() int64 {
+	linesUsed := 0
+	for i := ml.viewStart; i < len(ml.messages) && linesUsed < ml.viewHeight; i++ {
+		msg := ml.messages[i]
+		if msg.Photo != nil && msg.Photo.ID != 0 {
+			return msg.Photo.ID
+		}
+		linesUsed += ml.msgHeight(msg)
+	}
+	return 0
 }
 
 // ScrollToFirstUnread positions the viewport at the first message with ID > readMaxID.
@@ -212,7 +260,19 @@ func (ml *MessageList) msgHeight(msg store.Message) int {
 	if maxContentW < 4 {
 		maxContentW = 4
 	}
+
 	h := 0
+
+	if msg.Photo != nil {
+		if img, ok := ml.images[msg.Photo.ID]; ok {
+			cols := ml.photoContentCols()
+			b := img.Bounds()
+			h += media.PhotoTermLines(b.Dx(), b.Dy(), cols)
+		} else {
+			h++ // placeholder line
+		}
+	}
+
 	if msg.Text != "" {
 		for _, part := range strings.Split(msg.Text, "\n") {
 			r := []rune(part)
@@ -223,6 +283,7 @@ func (ml *MessageList) msgHeight(msg store.Message) int {
 			}
 		}
 	}
+
 	if h == 0 {
 		h = 1 // at least one content line for empty-text messages
 	}
@@ -273,6 +334,14 @@ func (ml *MessageList) renderMessage(msg store.Message) []string {
 	}
 	if actualW < 1 {
 		actualW = 1
+	}
+
+	// Ensure photo content width is reflected in bubble sizing.
+	if msg.Photo != nil {
+		photoCols := ml.photoContentCols()
+		if photoCols > actualW {
+			actualW = photoCols
+		}
 	}
 
 	// innerW = actualW (content) + 2 (padding 1 each side).
@@ -326,8 +395,31 @@ func (ml *MessageList) renderMessage(msg store.Message) []string {
 	}
 	bottom := bs.Render(b.BottomLeft+strings.Repeat(b.Bottom, tsLeftFill)) + tsStr + bs.Render(b.BottomRight)
 
-	// Content lines with word wrapping.
+	// Content lines: photo art (if any) then text.
 	var sideLines []string
+
+	if msg.Photo != nil {
+		photoCols := ml.photoContentCols()
+		if img, ok := ml.images[msg.Photo.ID]; ok {
+			artLines := media.RenderBlockArt(img, photoCols)
+			for _, al := range artLines {
+				lw := lipgloss.Width(al)
+				if lw < actualW {
+					al += strings.Repeat(" ", actualW-lw)
+				}
+				sideLines = append(sideLines, bs.Render(b.Left)+" "+al+" "+bs.Render(b.Right))
+			}
+		} else {
+			placeholder := "[ photo ]"
+			pw := len(placeholder)
+			padding := ""
+			if actualW > pw {
+				padding = strings.Repeat(" ", actualW-pw)
+			}
+			sideLines = append(sideLines, bs.Render(b.Left)+" "+placeholder+padding+" "+bs.Render(b.Right))
+		}
+	}
+
 	if msg.Text != "" {
 		rendered := RenderEntities(msg.Text, msg.Entities)
 		wrapStyle := lipgloss.NewStyle().Width(actualW)
@@ -344,7 +436,7 @@ func (ml *MessageList) renderMessage(msg store.Message) []string {
 				sideLines = append(sideLines, bs.Render(b.Left)+" "+wl+" "+bs.Render(b.Right))
 			}
 		}
-	} else {
+	} else if len(sideLines) == 0 {
 		sideLines = []string{bs.Render(b.Left) + strings.Repeat(" ", innerW) + bs.Render(b.Right)}
 	}
 
