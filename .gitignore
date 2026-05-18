@@ -1,8 +1,23 @@
 # AI tools
 .claude/
+docs/superpowers/
+.superpowers/
 TODO.md
+.code-review-graph/
+.kiro/
+.cursorrules
+.mcp.json
+.opencode.json
+.windsurfrules
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
 
 # App config
 .env
 .config/
 *.log
+
+# Dev build
+tele
