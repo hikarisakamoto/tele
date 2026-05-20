@@ -110,11 +110,13 @@ func NewRootModel(client internaltg.Client, st store.Store, historyLimit int, ve
 	km := keys.DefaultKeyMap()
 	sb := components.NewStatusBar(80)
 	sb.SetKeyMap(km)
+	cl := screens.NewChatListModel()
+	cl.SetFocused(true)
 	return RootModel{
 		screen:            ScreenLogin,
 		focus:             FocusChatList,
 		hasDarkBackground: true,
-		chatList:     screens.NewChatListModel(),
+		chatList:     cl,
 		chat:         screens.NewChatModel(80, 24),
 		folderBar:    screens.NewFoldersModel(),
 		statusBar:    sb,

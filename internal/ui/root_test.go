@@ -59,6 +59,11 @@ func TestRoot_InitialScreen_Login(t *testing.T) {
 	assert.Equal(t, ui.ScreenLogin, m.CurrentScreen())
 }
 
+func TestRoot_InitialChatList_IsFocused(t *testing.T) {
+	m := ui.NewRootModel(nil, nil, 50, false)
+	assert.True(t, m.ChatList().Focused(), "chatList must be focused from the start so cursor highlight is visible")
+}
+
 func TestRoot_2_FocusesChat(t *testing.T) {
 	m := ui.NewRootModel(nil, nil, 50, false)
 	m = m.WithScreen(ui.ScreenMain)
