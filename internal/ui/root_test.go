@@ -753,3 +753,19 @@ func TestRoot_EventUserPresence_UpdatesChatOnline(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, chat.Online)
 }
+
+func TestRoot_Esc_NormalMode_ClosesChatReturnsToChatList(t *testing.T) {
+	m := ui.NewRootModel(nil, nil, 50, false)
+	m = m.WithScreen(ui.ScreenMain)
+
+	// Open a chat — this sets focus to FocusChat.
+	newM, _ := m.Update(screens.OpenChatMsg{Chat: store.Chat{ID: 1, Title: "Alice"}})
+	m = newM.(ui.RootModel)
+	require.Equal(t, ui.FocusChat, m.CurrentFocus())
+
+	// Press Esc in normal mode.
+	newM, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = newM.(ui.RootModel)
+
+	assert.Equal(t, ui.FocusChatList, m.CurrentFocus())
+}

@@ -759,6 +759,16 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	action := m.vimState.Process(keyStr)
 	m.statusBar.SetMode(m.vimState.Mode)
 
+	// Esc in normal mode: close active chat and return to chatlist.
+	if action == keys.ActionNormal && m.focus == FocusChat {
+		m.chat.ClearPendingAction()
+		m.chat.SetChat(nil)
+		m.chat.SetMessages(nil)
+		m.currentChatID = 0
+		m.chatList.SetActiveByID(0)
+		return m.focusPane(FocusChatList)
+	}
+
 	if action == keys.ActionOpenContextMenu && m.focus == FocusChat {
 		if m.chat != nil {
 			msgID := m.chat.SelectedMessageID()

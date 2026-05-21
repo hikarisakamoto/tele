@@ -74,7 +74,7 @@ func (c *Composer) ClearReplyPreview()             { c.replyPreview = "" }
 func (c *Composer) VisualHeight() int {
 	h := c.visualLines + 2
 	if c.replyPreview != "" {
-		h += strings.Count(c.replyPreview, "\n") + 1
+		h += strings.Count(c.replyPreview, "\n") + 2
 	}
 	return h
 }
@@ -115,7 +115,7 @@ func (c *Composer) recomputeHeight() {
 func (c *Composer) View() string {
 	var content string
 	if c.replyPreview != "" {
-		content = c.replyPreview + "\n" + c.ta.View()
+		content = c.replyPreview + "\n\n" + c.ta.View()
 	} else {
 		content = c.ta.View()
 	}

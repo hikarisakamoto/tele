@@ -737,3 +737,63 @@ func TestMessageList_ReplyBubble_NilOrig_ShowsPlaceholder(t *testing.T) {
 	require.NotPanics(t, func() { ml.View() })
 	assert.Contains(t, ml.View(), "Original not available")
 }
+
+func TestMessageList_View_PhotoTextHasBlankLineSeparator(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	msg := store.Message{
+		ID:    1,
+		ChatID: 1,
+		Photo: &store.PhotoRef{ID: 77},
+		Text:  "caption text",
+		Date:  time.Now(),
+	}
+	ml.SetMessages([]store.Message{msg})
+	view := stripANSI(ml.View())
+	lines := strings.Split(view, "\n")
+
+	photoIdx, textIdx := -1, -1
+	for i, l := range lines {
+		if strings.Contains(l, "photo") && photoIdx == -1 {
+			photoIdx = i
+		}
+		if strings.Contains(l, "caption text") {
+			textIdx = i
+		}
+	}
+	require.Greater(t, photoIdx, 0, "photo placeholder line not found")
+	require.Greater(t, textIdx, photoIdx, "caption text must come after photo")
+
+	// Without blank separator: gap=1 (photo immediately followed by text).
+	// With blank separator: gap=2 (photo + blank + text).
+	assert.Greater(t, textIdx-photoIdx, 1,
+		"expected blank separator line between photo and caption text")
+}
+
+func TestMessageList_View_ReplyHasBlankLineSeparator(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	now := time.Now()
+	orig := store.Message{ID: 1, ChatID: 1, SenderName: "Alice", Text: "original text", Date: now}
+	reply := store.Message{ID: 2, ChatID: 1, Text: "reply body", ReplyToMsgID: 1, Date: now}
+	ml.SetMessages([]store.Message{orig, reply})
+	view := stripANSI(ml.View())
+	lines := strings.Split(view, "\n")
+
+	// "Alice" appears only in the reply preview (non-group chat, no border name).
+	// "reply body" is the message text.
+	nameIdx, textIdx := -1, -1
+	for i, l := range lines {
+		if strings.Contains(l, "Alice") && nameIdx == -1 {
+			nameIdx = i
+		}
+		if strings.Contains(l, "reply body") {
+			textIdx = i
+		}
+	}
+	require.Greater(t, nameIdx, 0, "name preview line not found")
+	require.Greater(t, textIdx, nameIdx, "reply body must come after name preview")
+
+	// Without blank separator: gap=2 (name + snippet).
+	// With blank separator: gap=3 (name + snippet + blank).
+	assert.Greater(t, textIdx-nameIdx, 2,
+		"expected blank separator line between reply preview and message body")
+}

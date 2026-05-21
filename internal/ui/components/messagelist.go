@@ -502,6 +502,9 @@ func (ml *MessageList) msgHeight(msg store.Message) int {
 		} else {
 			h += 1
 		}
+		if msg.Text != "" || msg.Photo != nil {
+			h++ // blank separator line between preview and body
+		}
 	}
 
 	if msg.Photo != nil {
@@ -511,6 +514,9 @@ func (ml *MessageList) msgHeight(msg store.Message) int {
 			h += media.PhotoTermLines(b.Dx(), b.Dy(), cols)
 		} else {
 			h++ // placeholder line
+		}
+		if msg.Text != "" {
+			h++ // blank separator line between photo and caption
 		}
 	}
 
@@ -792,6 +798,9 @@ func (ml *MessageList) renderMessage(msg store.Message, selected bool) []string 
 			snippet = firstLine(orig.Text)
 		}
 		sideLines = append(sideLines, ml.renderPreviewLines(name, snippet, actualW, bs)...)
+		if msg.Text != "" || msg.Photo != nil {
+			sideLines = append(sideLines, bs.Render(b.Left)+strings.Repeat(" ", innerW)+bs.Render(b.Right))
+		}
 	}
 
 	if msg.Photo != nil {
@@ -813,6 +822,9 @@ func (ml *MessageList) renderMessage(msg store.Message, selected bool) []string 
 				padding = strings.Repeat(" ", actualW-pw)
 			}
 			sideLines = append(sideLines, bs.Render(b.Left)+" "+placeholder+padding+" "+bs.Render(b.Right))
+		}
+		if msg.Text != "" {
+			sideLines = append(sideLines, bs.Render(b.Left)+strings.Repeat(" ", innerW)+bs.Render(b.Right))
 		}
 	}
 
