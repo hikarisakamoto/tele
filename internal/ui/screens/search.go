@@ -72,9 +72,16 @@ func arrowSym(key string) string {
 	}
 }
 
-func (m *SearchModel) Cursor() int { return m.cursor }
+func (m *SearchModel) Cursor() int          { return m.cursor }
+func (m *SearchModel) Query() string        { return m.query }
+func (m *SearchModel) Results() []store.Chat { return m.results }
 
 func (m *SearchModel) Update(msg tea.Msg) (*SearchModel, tea.Cmd) {
+	if paste, ok := msg.(tea.PasteMsg); ok {
+		m.query += paste.Content
+		m.filter()
+		return m, nil
+	}
 	km, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return m, nil

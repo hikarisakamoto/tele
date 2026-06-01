@@ -26,6 +26,7 @@ func NewComposer(width int) *Composer {
 	ta.Prompt = "> "
 	ta.MaxHeight = maxComposerLines
 	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("alt+enter", "shift+enter"))
+	ta.KeyMap.Paste = key.NewBinding() // handled at root level via readClipboardCmd → tea.PasteMsg
 	ta.CharLimit = 4096
 	ta.SetHeight(1)
 	ta.SetWidth(width - 2)

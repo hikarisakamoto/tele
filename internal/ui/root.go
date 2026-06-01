@@ -13,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
 
 	"github.com/sorokin-vladimir/tele/internal/config"
 	"github.com/sorokin-vladimir/tele/internal/store"
@@ -163,7 +164,8 @@ func (m RootModel) WithConfig(cfg *config.Config) RootModel {
 	return m
 }
 
-func (m RootModel) SearchActive() bool    { return m.searchModel != nil }
+func (m RootModel) SearchActive() bool             { return m.searchModel != nil }
+func (m RootModel) Search() *screens.SearchModel   { return m.searchModel }
 func (m RootModel) ContextMenuOpen() bool    { return m.contextMenu != nil }
 func (m RootModel) ReactionPickerOpen() bool { return m.reactionPicker != nil }
 
@@ -666,6 +668,22 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case tea.PasteMsg:
+		if m.screen != ScreenMain {
+			return m, nil
+		}
+		if m.searchModel != nil {
+			newSearch, cmd := m.searchModel.Update(msg)
+			m.searchModel = newSearch
+			return m, cmd
+		}
+		if m.focus == FocusChat {
+			newPane, cmd := m.chat.Update(msg)
+			m.chat = newPane.(*screens.ChatModel)
+			return m, cmd
+		}
+		return m, nil
+
 	case tea.KeyPressMsg:
 		if m.screen == ScreenLogin {
 			newLogin, cmd := m.login.Update(msg)
@@ -697,6 +715,9 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.searchModel != nil {
+		if keyStr == "ctrl+v" {
+			return m, readClipboardCmd()
+		}
 		newSearch, cmd := m.searchModel.Update(msg)
 		m.searchModel = newSearch
 		return m, cmd
@@ -710,6 +731,9 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			newPane, cmd := m.chat.Update(keys.ActionMsg{Action: keys.ActionNormal})
 			m.chat = newPane.(*screens.ChatModel)
 			return m, cmd
+		}
+		if keyStr == "ctrl+v" {
+			return m, readClipboardCmd()
 		}
 		newPane, cmd := m.chat.Update(msg)
 		m.chat = newPane.(*screens.ChatModel)
@@ -1189,5 +1213,15 @@ func spinnerTickCmd() tea.Cmd {
 	return tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg {
 		return components.SpinnerTickMsg{}
 	})
+}
+
+func readClipboardCmd() tea.Cmd {
+	return func() tea.Msg {
+		str, err := clipboard.ReadAll()
+		if err != nil || str == "" {
+			return nil
+		}
+		return tea.PasteMsg{Content: str}
+	}
 }
 

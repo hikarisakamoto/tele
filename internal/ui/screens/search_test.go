@@ -110,6 +110,17 @@ func TestSearch_HintInBottomBorder(t *testing.T) {
 	assert.Contains(t, view, "↑/↓ -> move")
 }
 
+func TestSearch_PasteMsg_UpdatesQuery(t *testing.T) {
+	km := keys.DefaultKeyMap()
+	m := screens.NewSearchModel(makeSearchChats(), 80, 24, km)
+
+	newM, _ := m.Update(tea.PasteMsg{Content: "Ali"})
+	m = newM
+
+	assert.Equal(t, "Ali", m.Query())
+	assert.Len(t, m.Results(), 1) // only "Alice" contains "ali"
+}
+
 func TestSearch_NoHintWithoutKeyMap(t *testing.T) {
 	m := screens.NewSearchModel(makeSearchChats(), 80, 24, nil)
 	view := m.View()

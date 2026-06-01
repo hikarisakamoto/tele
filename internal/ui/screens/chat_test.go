@@ -283,6 +283,18 @@ func TestChat_ShiftEnter_DoesNotSend(t *testing.T) {
 	assert.False(t, isSend, "shift+enter must not send message")
 }
 
+func TestChatModel_PasteMsg_InsertsTextIntoComposer(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	require.True(t, m.ComposerFocused())
+
+	newPane, _ = m.Update(tea.PasteMsg{Content: "hello world"})
+	m = newPane.(*screens.ChatModel)
+
+	assert.Equal(t, "hello world", m.ComposerValue())
+}
+
 func TestChatModel_LoadingView_ShowsSpinner(t *testing.T) {
 	m := screens.NewChatModel(80, 24)
 	m.SetLoading(true)

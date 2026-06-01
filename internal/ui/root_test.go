@@ -754,6 +754,33 @@ func TestRoot_EventUserPresence_UpdatesChatOnline(t *testing.T) {
 	assert.True(t, chat.Online)
 }
 
+func TestRoot_PasteMsg_WhenComposerFocused_InsertsText(t *testing.T) {
+	m, _ := newRootWithOpenChat(t, &mockTGClient{})
+	// enter insert mode → focuses composer
+	newM, _ := m.Update(tea.KeyPressMsg{Code: 'i', Text: "i"})
+	m = newM.(ui.RootModel)
+	require.True(t, m.Chat().ComposerFocused())
+
+	newM, _ = m.Update(tea.PasteMsg{Content: "pasted text"})
+	m = newM.(ui.RootModel)
+
+	assert.Equal(t, "pasted text", m.Chat().ComposerValue())
+}
+
+func TestRoot_PasteMsg_WhenSearchOpen_UpdatesQuery(t *testing.T) {
+	m, _ := newRootWithOpenChat(t, &mockTGClient{})
+	// open search
+	newM, _ := m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	m = newM.(ui.RootModel)
+	require.True(t, m.SearchActive())
+
+	newM, _ = m.Update(tea.PasteMsg{Content: "alice"})
+	m = newM.(ui.RootModel)
+
+	require.True(t, m.SearchActive())
+	assert.Equal(t, "alice", m.Search().Query())
+}
+
 func TestRoot_Esc_NormalMode_ClosesChatReturnsToChatList(t *testing.T) {
 	m := ui.NewRootModel(nil, nil, 50, false)
 	m = m.WithScreen(ui.ScreenMain)
