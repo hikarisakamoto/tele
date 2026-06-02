@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	runewidth "github.com/mattn/go-runewidth"
 	"github.com/sorokin-vladimir/tele/internal/store"
 	"github.com/sorokin-vladimir/tele/internal/ui/media"
 )
@@ -145,13 +146,11 @@ func (ml *MessageList) renderPreviewLines(senderID int64, senderName, snippet st
 	namePart := ns.Render(quoteGlyph) + ns.Render(senderName)
 	nw := lipgloss.Width(namePart)
 	if nw > actualW {
-		maxNameRunes := actualW - glyphW - 1
-		if maxNameRunes < 1 {
-			maxNameRunes = 1
+		maxNameW := actualW - glyphW - 1
+		if maxNameW < 1 {
+			maxNameW = 1
 		}
-		if nr := []rune(senderName); len(nr) > maxNameRunes {
-			senderName = string(nr[:maxNameRunes]) + "…"
-		}
+		senderName = runewidth.Truncate(senderName, maxNameW, "…")
 		namePart = ns.Render(quoteGlyph) + ns.Render(senderName)
 		nw = lipgloss.Width(namePart)
 	}
@@ -160,13 +159,11 @@ func (ml *MessageList) renderPreviewLines(senderID int64, senderName, snippet st
 	}
 	nameRow := bs.Render(b.Left) + " " + namePart + " " + bs.Render(b.Right)
 
-	maxSnippetRunes := actualW - glyphW
-	if maxSnippetRunes < 1 {
-		maxSnippetRunes = 1
+	maxSnippetW := actualW - glyphW
+	if maxSnippetW < 1 {
+		maxSnippetW = 1
 	}
-	if sr := []rune(snippet); len(sr) > maxSnippetRunes {
-		snippet = string(sr[:maxSnippetRunes-1]) + "…"
-	}
+	snippet = runewidth.Truncate(snippet, maxSnippetW, "…")
 	textPart := ns.Render(quoteGlyph) + quoteStyle.Render(snippet)
 	tw := lipgloss.Width(textPart)
 	if tw < actualW {

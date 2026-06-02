@@ -930,3 +930,27 @@ func TestMessageList_SenderColor_DarkVsLight(t *testing.T) {
 		ansiOpenBeforeName(lightLine, "Alice"),
 		"dark and light backgrounds must use different colors for the same sender")
 }
+
+func TestMessageList_ReplyPreview_CJKSenderNameTruncated(t *testing.T) {
+	// 30 CJK chars = 60 visual cols, far wider than any bubble content width.
+	// Rune-count (30) is below the budget computed from actualW (e.g. ~20), so
+	// the current rune-based code does NOT truncate. runewidth-based code must.
+	now := time.Now()
+	ml := components.NewMessageList(40, 80)
+	ml.SetMessages([]store.Message{
+		{ID: 1, ChatID: 1, SenderID: 5, SenderName: strings.Repeat("中", 30), Text: "original", Date: now},
+		{ID: 2, ChatID: 1, Text: "reply", ReplyToMsgID: 1, Date: now},
+	})
+	raw := ml.View()
+
+	var previewLine string
+	for _, l := range strings.Split(raw, "\n") {
+		plain := stripANSI(l)
+		if strings.Contains(plain, "▌") && strings.Contains(plain, "中") {
+			previewLine = plain
+			break
+		}
+	}
+	require.NotEmpty(t, previewLine, "reply preview name row not found")
+	assert.Contains(t, previewLine, "…")
+}

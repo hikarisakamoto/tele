@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 
+	runewidth "github.com/mattn/go-runewidth"
 	"github.com/sorokin-vladimir/tele/internal/store"
 )
 
@@ -15,10 +16,7 @@ func BuildEditPreview(msg store.Message) string {
 	if idx := strings.IndexByte(snippet, '\n'); idx >= 0 {
 		snippet = snippet[:idx]
 	}
-	runes := []rune(snippet)
-	if len(runes) > 40 {
-		snippet = string(runes[:39]) + "…"
-	}
+	snippet = runewidth.Truncate(snippet, 39, "…")
 	nameLine := quoteGlyph + editNameStyle.Render("Edit Message")
 	snippetLine := quoteGlyph + quoteStyle.Render(snippet)
 	return nameLine + "\n" + snippetLine
@@ -42,10 +40,7 @@ func BuildReplyPreview(msg store.Message) string {
 	if idx := strings.IndexByte(snippet, '\n'); idx >= 0 {
 		snippet = snippet[:idx]
 	}
-	runes := []rune(snippet)
-	if len(runes) > 40 {
-		snippet = string(runes[:39]) + "…"
-	}
+	snippet = runewidth.Truncate(snippet, 39, "…")
 
 	nameLine := quoteGlyph + inNameStyle.Render(name)
 	snippetLine := quoteGlyph + quoteStyle.Render(snippet)

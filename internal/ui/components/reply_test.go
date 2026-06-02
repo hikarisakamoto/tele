@@ -82,3 +82,17 @@ func TestBuildEditPreview_MultilineUsesFirstLine(t *testing.T) {
 	assert.Contains(t, got, "first")
 	assert.NotContains(t, got, "second")
 }
+
+func TestBuildReplyPreview_CJKSnippetTruncated(t *testing.T) {
+	// 25 CJK chars = 50 visual cols > 39 limit, but len(runes)=25 < 40, so
+	// rune-based code does NOT truncate. runewidth-based code must.
+	msg := store.Message{SenderName: "Bob", Text: strings.Repeat("中", 25)}
+	preview := components.BuildReplyPreview(msg)
+	assert.Contains(t, preview, "…")
+}
+
+func TestBuildEditPreview_CJKSnippetTruncated(t *testing.T) {
+	msg := store.Message{Text: strings.Repeat("中", 25)}
+	got := components.BuildEditPreview(msg)
+	assert.Contains(t, got, "…")
+}
