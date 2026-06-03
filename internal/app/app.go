@@ -42,6 +42,9 @@ func maybeNotify(notifier Notifier, st store.Store, evt store.Event, currentChat
 	if evt.Kind != store.EventNewMessage {
 		return
 	}
+	if evt.Message.IsOut {
+		return
+	}
 	if evt.Message.ChatID == currentChatID {
 		return
 	}

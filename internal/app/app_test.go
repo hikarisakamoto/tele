@@ -70,3 +70,15 @@ func TestMaybeNotify_IgnoresNonMessageEvents(t *testing.T) {
 	maybeNotify(n, st, evt, 0)
 	assert.Empty(t, n.calls)
 }
+
+func TestMaybeNotify_SilentForOutgoingMessage(t *testing.T) {
+	n := &mockNotifier{}
+	st := store.NewMemory()
+	st.SetChat(store.Chat{ID: 2, Title: "Bob"})
+	evt := store.Event{
+		Kind:    store.EventNewMessage,
+		Message: store.Message{ChatID: 2, Text: "sent from phone", IsOut: true},
+	}
+	maybeNotify(n, st, evt, 1)
+	assert.Empty(t, n.calls)
+}

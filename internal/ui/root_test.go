@@ -255,6 +255,26 @@ func TestRoot_NewMessageEvent_NoUnreadForCurrentChat(t *testing.T) {
 	assert.Equal(t, 0, chat1.UnreadCount)
 }
 
+func TestRoot_NewMessageEvent_NoUnreadForOutgoingMessage(t *testing.T) {
+	m, _ := newRootWithTwoChats(t)
+
+	evt := store.Event{
+		Kind:    store.EventNewMessage,
+		Message: store.Message{ChatID: 2, Text: "sent from phone", IsOut: true},
+	}
+	newM, _ := m.Update(evt)
+	root := newM.(ui.RootModel)
+
+	chats := root.ChatList().Chats()
+	var chat2 store.Chat
+	for _, c := range chats {
+		if c.ID == 2 {
+			chat2 = c
+		}
+	}
+	assert.Equal(t, 0, chat2.UnreadCount)
+}
+
 func newRootWithOpenChat(t *testing.T, mock *mockTGClient) (ui.RootModel, store.Store) {
 	t.Helper()
 	st := store.NewMemory()

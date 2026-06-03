@@ -417,7 +417,9 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.chat.SetMessages(m.st.Messages(m.currentChatID))
 				return m, m.markReadCmd()
 			}
-			m.chatList.IncrementUnread(msg.Message.ChatID)
+			if !msg.Message.IsOut {
+				m.chatList.IncrementUnread(msg.Message.ChatID)
+			}
 		case store.EventReadInbox:
 			m.st.UpdateChatReadMaxID(msg.ChatID, msg.ReadMaxID)
 			if chat, ok := m.st.GetChat(msg.ChatID); ok {
