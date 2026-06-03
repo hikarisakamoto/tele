@@ -74,60 +74,29 @@ On first run, `tele` creates `~/.config/tele/config.yml` and prompts you to log 
 ## Features
 
 - Vim-style navigation — `j`/`k`, `gg`/`G`, `i`/`Esc`
-- Telegram folders (archived chats, custom folders)
+- Telegram folders — archived chats, custom folders, persistent state
 - Send, reply, edit and delete messages
 - Reactions — view and send
 - Photos — open in external viewer
 - Chat search (`/`)
-- Date separators in chat history
+- Date separators and unread message marker in chat history
 - Configurable via YAML
 - Single static binary — no runtime dependencies
 
 ## Keybindings
 
-### Global
+| Key | Action |
+| --- | ------ |
+| `j` / `k` | Navigate chats or scroll messages |
+| `i` | Compose message |
+| `r` | Reply |
+| `e` / `d` | Edit / delete own message |
+| `t` | React |
+| `/` | Search chats |
+| `0` / `1` / `2` | Focus folders / chat list / chat |
+| `q` | Quit |
 
-| Key                       | Action          |
-| ------------------------- | --------------- |
-| `0`                       | Focus folders   |
-| `1` / `h` / `←`           | Focus chat list |
-| `2` / `l` / `→`           | Focus chat      |
-| `q` / `Ctrl+Q` / `Ctrl+C` | Quit            |
-
-### Chat list
-
-| Key                 | Action                     |
-| ------------------- | -------------------------- |
-| `j` / `↓`           | Next chat                  |
-| `k` / `↑`           | Previous chat              |
-| `G`                 | Last chat                  |
-| `Ctrl+D` / `Ctrl+U` | Scroll half-page down / up |
-| `Enter`             | Open chat                  |
-| `/`                 | Search chats               |
-
-### Chat (normal mode)
-
-| Key       | Action                         |
-| --------- | ------------------------------ |
-| `j` / `↓` | Scroll down                    |
-| `k` / `↑` | Scroll up                      |
-| `gg`      | Scroll to top                  |
-| `G`       | Scroll to bottom               |
-| `i` / `a` | Compose message (insert mode)  |
-| `r`       | Reply to message               |
-| `t`       | React to message               |
-| `e`       | Edit own message               |
-| `d`       | Delete own message             |
-| `g`       | Jump to original (for replies) |
-| `o`       | Open photo in external viewer  |
-| `Space`   | Context menu                   |
-
-### Compose (insert mode)
-
-| Key     | Action              |
-| ------- | ------------------- |
-| `Enter` | Send message        |
-| `Esc`   | Back to normal mode |
+Full keybinding reference: [docs/keybindings.md](docs/keybindings.md)
 
 ## Configuration
 
@@ -145,17 +114,18 @@ ui:
 
 ## Roadmap
 
-See the [GitHub milestones](https://github.com/sorokin-vladimir/tele/milestones) for the full roadmap.
+Tracked via [GitHub milestones](https://github.com/sorokin-vladimir/tele/milestones).
 
-| Phase   | Status         | Focus                                                  |
-| ------- | -------------- | ------------------------------------------------------ |
-| Phase 2 | 🔄 In progress | Usability fixes, input improvements, scroll indicator  |
-| Phase 3 | 📋 Planned     | @mentions, forward, typing indicator, online status    |
-| Phase 4 | 📋 Planned     | Vim motions, command palette, themes, full-text search |
+| Milestone | Issues | Focus |
+| --------- | ------ | ----- |
+| [Security & Reliability](https://github.com/sorokin-vladimir/tele/milestone/4) | 7 open | Rollback on API failure, secure logging, photo cleanup, event delivery guarantees |
+| [Architecture & Performance](https://github.com/sorokin-vladimir/tele/milestone/5) | 12 open | Decompose model, debounce updates, store caching, memory caps |
+| [Feature Completeness](https://github.com/sorokin-vladimir/tele/milestone/6) | 15 open | Forward, @mentions, extended markdown, pinned messages, drafts, in-chat search |
+| [Power User & Polish](https://github.com/sorokin-vladimir/tele/milestone/7) | 16 open | Vim motions, configurable keybindings, command palette, themes, full-text search |
 
 ## Build from source
 
-Requires Go 1.22+ and your own [Telegram API credentials](https://my.telegram.org).
+Requires Go 1.26+ and your own [Telegram API credentials](https://my.telegram.org).
 
 ```sh
 git clone https://github.com/sorokin-vladimir/tele
