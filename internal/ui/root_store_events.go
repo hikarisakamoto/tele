@@ -15,6 +15,16 @@ func (m RootModel) handleStoreEvent(msg store.Event) (RootModel, tea.Cmd) {
 	switch msg.Kind {
 	case store.EventNewMessage:
 		m.st.AppendMessage(msg.Message)
+		// Track unread in the store (single source of truth) before rebuilding the
+		// list. Skip messages already covered by the read pointer — they were read
+		// elsewhere and arrive via getDifference catch-up. The store value is later
+		// overwritten by authoritative GetDialogs server state, so it must not be
+		// shadowed by a sticky list badge.
+		if msg.Message.ChatID != m.currentChatID && !msg.Message.IsOut {
+			if chat, ok := m.st.GetChat(msg.Message.ChatID); ok && msg.Message.ID > chat.ReadInboxMaxID {
+				m.st.IncrementChatUnread(msg.Message.ChatID)
+			}
+		}
 		m.chatList.SetChats(m.filteredChats())
 		if m.folderBar != nil {
 			m.folderBar.SetUnreadCounts(m.computeFolderUnreads())
@@ -22,9 +32,6 @@ func (m RootModel) handleStoreEvent(msg store.Event) (RootModel, tea.Cmd) {
 		if msg.Message.ChatID == m.currentChatID {
 			m.chat.SetMessages(m.st.Messages(m.currentChatID))
 			return m, m.markReadCmd()
-		}
-		if !msg.Message.IsOut {
-			m.chatList.IncrementUnread(msg.Message.ChatID)
 		}
 	case store.EventReadInbox:
 		m.st.UpdateChatReadMaxID(msg.ChatID, msg.ReadMaxID)

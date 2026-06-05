@@ -312,6 +312,19 @@ func (s *SQLiteStore) RemoveMessages(chatID int64, msgIDs []int) {
 	s.messages[chatID] = kept
 }
 
+func (s *SQLiteStore) IncrementChatUnread(chatID int64) {
+	s.mu.Lock()
+	chat, ok := s.chats[chatID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	chat.UnreadCount++
+	s.chats[chatID] = chat
+	s.mu.Unlock()
+	s.persistChat(chat)
+}
+
 func (s *SQLiteStore) UpdateChatReadMaxID(chatID int64, maxID int) {
 	s.mu.Lock()
 	chat, ok := s.chats[chatID]

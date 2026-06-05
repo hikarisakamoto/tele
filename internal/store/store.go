@@ -14,6 +14,7 @@ type Store interface {
 	UpdateMessageReactions(chatID int64, msgID int, reactions []Reaction)
 	RemoveMessage(chatID int64, msgID int)
 	RemoveMessages(chatID int64, msgIDs []int)
+	IncrementChatUnread(chatID int64)
 	UpdateChatReadMaxID(chatID int64, maxID int)
 	UpdateChatOutboxReadMaxID(chatID int64, maxID int)
 	UpdateChatOnline(userID int64, online bool)

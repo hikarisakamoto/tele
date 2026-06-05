@@ -190,7 +190,7 @@ func TestRoot_NewMessageEvent_IncrementsUnread(t *testing.T) {
 
 	evt := store.Event{
 		Kind:    store.EventNewMessage,
-		Message: store.Message{ChatID: 2, Text: "hi"},
+		Message: store.Message{ID: 1, ChatID: 2, Text: "hi"},
 	}
 	newM, _ := m.Update(evt)
 	root := newM.(ui.RootModel)
@@ -210,14 +210,14 @@ func TestRoot_NewMessageEvent_UnreadPersistsAcrossMultipleEvents(t *testing.T) {
 
 	evt := store.Event{
 		Kind:    store.EventNewMessage,
-		Message: store.Message{ChatID: 2, Text: "first"},
+		Message: store.Message{ID: 1, ChatID: 2, Text: "first"},
 	}
 	newM, _ := m.Update(evt)
 	m = newM.(ui.RootModel)
 
 	evt2 := store.Event{
 		Kind:    store.EventNewMessage,
-		Message: store.Message{ChatID: 2, Text: "second"},
+		Message: store.Message{ID: 2, ChatID: 2, Text: "second"},
 	}
 	newM, _ = m.Update(evt2)
 	root := newM.(ui.RootModel)
@@ -825,4 +825,83 @@ func TestRoot_SetTmpDir(t *testing.T) {
 	m := ui.NewRootModel(nil, nil, 50, false)
 	m.SetTmpDir("/tmp/tele-test")
 	assert.Equal(t, "/tmp/tele-test", m.TmpDir())
+}
+
+// TestRoot_NewMessageEvent_AlreadyReadElsewhere reproduces issue #88.
+// gotd dispatches OtherUpdates (including updateReadHistoryInbox) before NewMessages
+// in a getDifference response. A message whose ID is covered by the read pointer
+// must not produce a false unread badge when it arrives after the read event.
+func TestRoot_NewMessageEvent_AlreadyReadElsewhere(t *testing.T) {
+	st := store.NewMemory()
+	st.SetChat(store.Chat{
+		ID:             2,
+		Title:          "Bob",
+		ReadInboxMaxID: 100,
+		UnreadCount:    0,
+	})
+	m := ui.NewRootModel(nil, st, 50, false)
+	m = m.WithScreen(ui.ScreenMain)
+	newM, _ := m.Update(screens.TransitionToMainMsg{})
+	m = newM.(ui.RootModel)
+
+	// EventReadInbox arrives first (gotd OtherUpdates before NewMessages)
+	newM, _ = m.Update(store.Event{
+		Kind:      store.EventReadInbox,
+		ChatID:    2,
+		ReadMaxID: 100,
+	})
+	m = newM.(ui.RootModel)
+
+	// EventNewMessage for a message already covered by the read pointer
+	newM, _ = m.Update(store.Event{
+		Kind:    store.EventNewMessage,
+		Message: store.Message{ID: 99, ChatID: 2, Text: "read elsewhere"},
+	})
+	root := newM.(ui.RootModel)
+
+	var chat2 store.Chat
+	for _, c := range root.ChatList().Chats() {
+		if c.ID == 2 {
+			chat2 = c
+		}
+	}
+	assert.Equal(t, 0, chat2.UnreadCount, "message read elsewhere must not increment unread badge")
+}
+
+// TestRoot_StartupCatchup_ServerReadClearsStaleBadge reproduces issue #88.
+// At startup the updates manager begins replaying getDifference catch-up events
+// BEFORE GetDialogs finishes. A new-message event arrives while the store still
+// holds the previous session's read pointer, so the badge increments. The read
+// acknowledgement for that chat is dropped during getDifference. GetDialogs then
+// writes the authoritative server state (read elsewhere → UnreadCount 0), which
+// must win — the list badge must not stay stuck on the stale increment.
+func TestRoot_StartupCatchup_ServerReadClearsStaleBadge(t *testing.T) {
+	st := store.NewMemory()
+	// Persisted from previous session: read up to 100, no unread.
+	st.SetChat(store.Chat{ID: 2, Title: "Bob", ReadInboxMaxID: 100, UnreadCount: 0})
+	m := ui.NewRootModel(nil, st, 50, false)
+	m = m.WithScreen(ui.ScreenMain)
+
+	// Catch-up: new message (already read on another client) arrives before
+	// GetDialogs completes and before the read ack (which is dropped).
+	newM, _ := m.Update(store.Event{
+		Kind:    store.EventNewMessage,
+		Message: store.Message{ID: 150, ChatID: 2, Text: "read elsewhere"},
+	})
+	m = newM.(ui.RootModel)
+
+	// GetDialogs completes: server reports the chat as already read.
+	st.SetChat(store.Chat{ID: 2, Title: "Bob", ReadInboxMaxID: 150, UnreadCount: 0})
+
+	// Transition rebuilds the chat list from the authoritative store.
+	newM, _ = m.Update(screens.TransitionToMainMsg{})
+	root := newM.(ui.RootModel)
+
+	var chat2 store.Chat
+	for _, c := range root.ChatList().Chats() {
+		if c.ID == 2 {
+			chat2 = c
+		}
+	}
+	assert.Equal(t, 0, chat2.UnreadCount, "authoritative server read state must clear stale unread badge")
 }

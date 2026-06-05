@@ -157,6 +157,17 @@ func (s *memoryStore) RemoveMessages(chatID int64, msgIDs []int) {
 	s.messages[chatID] = kept
 }
 
+func (s *memoryStore) IncrementChatUnread(chatID int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	chat, ok := s.chats[chatID]
+	if !ok {
+		return
+	}
+	chat.UnreadCount++
+	s.chats[chatID] = chat
+}
+
 func (s *memoryStore) UpdateChatReadMaxID(chatID int64, maxID int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
