@@ -34,7 +34,7 @@ const (
 type Focus int
 
 const (
-	FocusFolders  Focus = iota
+	FocusFolders Focus = iota
 	FocusChatList
 	FocusChat
 )
@@ -62,29 +62,7 @@ type markReadDoneMsg struct {
 	maxID  int
 }
 
-type sentMsgConfirmedMsg struct {
-	chatID     int64
-	sentinelID int
-	realID     int
-}
-
 type historyChunkMsg struct {
-	chatID   int64
-	messages []store.Message
-}
-
-type reactionFailedMsg struct {
-	chatID    int64
-	msgID     int
-	reactions []store.Reaction
-}
-
-type deleteMsgFailedMsg struct {
-	chatID   int64
-	messages []store.Message
-}
-
-type editMsgFailedMsg struct {
 	chatID   int64
 	messages []store.Message
 }
@@ -96,22 +74,22 @@ type FolderFiltersMsg struct {
 type clearTypingMsg struct{ serial int }
 
 type RootModel struct {
-	screen            Screen
-	focus             Focus
-	width             int
-	height            int
-	hasDarkBackground bool
-	chatList      *screens.ChatListModel
-	chat          *screens.ChatModel
-	login         screens.LoginModel
-	statusBar     *components.StatusBar
-	vimState      *keys.VimState
-	keyMap        keys.KeyMap
-	tgClient      internaltg.Client
-	st            store.Store
-	currentChatID int64
-	historyLimit  int
-	verbose       bool
+	screen             Screen
+	focus              Focus
+	width              int
+	height             int
+	hasDarkBackground  bool
+	chatList           *screens.ChatListModel
+	chat               *screens.ChatModel
+	login              screens.LoginModel
+	statusBar          *components.StatusBar
+	vimState           *keys.VimState
+	keyMap             keys.KeyMap
+	tgClient           internaltg.Client
+	st                 store.Store
+	currentChatID      int64
+	historyLimit       int
+	verbose            bool
 	cfg                *config.Config
 	imageCache         map[int64]image.Image
 	fullImageCache     map[int64]image.Image
@@ -138,19 +116,19 @@ func NewRootModel(client internaltg.Client, st store.Store, historyLimit int, ve
 		screen:            ScreenLogin,
 		focus:             FocusChatList,
 		hasDarkBackground: true,
-		chatList:     cl,
-		chat:         screens.NewChatModel(80, 24),
-		folderBar:    screens.NewFoldersModel(),
-		statusBar:    sb,
-		vimState:     keys.NewVimState(),
-		keyMap:       km,
-		tgClient:     client,
-		st:           st,
-		historyLimit: historyLimit,
-		verbose:      verbose,
-		imageCache:     make(map[int64]image.Image),
-		fullImageCache: make(map[int64]image.Image),
-		logo:         components.NewLogoLoader(80),
+		chatList:          cl,
+		chat:              screens.NewChatModel(80, 24),
+		folderBar:         screens.NewFoldersModel(),
+		statusBar:         sb,
+		vimState:          keys.NewVimState(),
+		keyMap:            km,
+		tgClient:          client,
+		st:                st,
+		historyLimit:      historyLimit,
+		verbose:           verbose,
+		imageCache:        make(map[int64]image.Image),
+		fullImageCache:    make(map[int64]image.Image),
+		logo:              components.NewLogoLoader(80),
 	}
 }
 
@@ -177,10 +155,10 @@ func (m RootModel) WithConfig(cfg *config.Config) RootModel {
 	return m
 }
 
-func (m RootModel) SearchActive() bool             { return m.searchModel != nil }
-func (m RootModel) Search() *screens.SearchModel   { return m.searchModel }
-func (m RootModel) ContextMenuOpen() bool    { return m.contextMenu != nil }
-func (m RootModel) ReactionPickerOpen() bool { return m.reactionPicker != nil }
+func (m RootModel) SearchActive() bool           { return m.searchModel != nil }
+func (m RootModel) Search() *screens.SearchModel { return m.searchModel }
+func (m RootModel) ContextMenuOpen() bool        { return m.contextMenu != nil }
+func (m RootModel) ReactionPickerOpen() bool     { return m.reactionPicker != nil }
 
 // SetLoginModel injects the login model after NewRootModel (called by app.go).
 func (m *RootModel) SetLoginModel(lm screens.LoginModel) {
@@ -419,82 +397,16 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleStoreEvent(msg)
 
 	case screens.SendMsgRequest:
-		if m.tgClient == nil {
-			return m, nil
-		}
-		m.nextSentinel--
-		sentinelID := m.nextSentinel
-		sentinel := store.Message{
-			ID:           sentinelID,
-			ChatID:       m.currentChatID,
-			Text:         msg.Text,
-			Date:         time.Now(),
-			IsOut:        true,
-			ReplyToMsgID: msg.ReplyToMsgID,
-		}
-		if m.st != nil {
-			m.st.AppendMessage(sentinel)
-			m.chat.SetMessages(m.st.Messages(m.currentChatID))
-		}
-		client := m.tgClient
-		peer := msg.Peer
-		text := msg.Text
-		replyToMsgID := msg.ReplyToMsgID
-		chatID := m.currentChatID
-		return m, func() tea.Msg {
-			realID, err := client.SendMessage(context.Background(), peer, text, replyToMsgID)
-			if err != nil {
-				realID = 0
-			}
-			return sentMsgConfirmedMsg{chatID: chatID, sentinelID: sentinelID, realID: realID}
-		}
+		return m.handleSendMsg(msg)
 
 	case screens.EditSendRequest:
-		if m.st == nil || m.tgClient == nil {
-			return m, nil
-		}
-		chatID := m.currentChatID
-		origMessages := m.st.Messages(chatID)
-		m.st.UpdateMessageText(chatID, msg.MsgID, msg.Text, time.Now())
-		m.chat.SetMessages(m.st.Messages(chatID))
-		client := m.tgClient
-		peer := msg.Peer
-		msgID := msg.MsgID
-		text := msg.Text
-		return m, func() tea.Msg {
-			if err := client.EditMessage(context.Background(), peer, msgID, text); err != nil {
-				return editMsgFailedMsg{chatID: chatID, messages: origMessages}
-			}
-			return nil
-		}
+		return m.handleEditSend(msg)
 
 	case screens.SetTypingRequest:
-		if m.tgClient == nil {
-			return m, nil
-		}
-		client := m.tgClient
-		peer := msg.Peer
-		action := msg.Action
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = client.SetTyping(ctx, peer, action)
-		}()
-		return m, nil
+		return m.handleSetTyping(msg)
 
 	case sentMsgConfirmedMsg:
-		if m.st == nil {
-			return m, nil
-		}
-		if msg.realID != 0 {
-			m.st.UpdateMessageID(msg.chatID, msg.sentinelID, msg.realID)
-		} else {
-			m.st.RemoveMessage(msg.chatID, msg.sentinelID)
-		}
-		if msg.chatID == m.currentChatID {
-			m.chat.SetMessages(m.st.Messages(msg.chatID))
-		}
-		return m, nil
+		return m.handleSentMsgConfirmed(msg)
 
 	case components.JumpToMsgRequest:
 		m.contextMenu = nil
@@ -541,105 +453,19 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case reactionFailedMsg:
-		if m.st != nil {
-			m.st.UpdateMessageReactions(msg.chatID, msg.msgID, msg.reactions)
-			if msg.chatID == m.currentChatID {
-				m.chat.SetMessagesKeepScroll(m.st.Messages(m.currentChatID))
-			}
-		}
-		return m, nil
+		return m.handleReactionFailed(msg)
 
 	case deleteMsgFailedMsg:
-		if m.st != nil {
-			m.st.SetMessages(msg.chatID, msg.messages)
-			if msg.chatID == m.currentChatID {
-				m.chat.SetMessagesKeepScroll(m.st.Messages(m.currentChatID))
-			}
-		}
-		m.statusBar.SetStatus("Delete failed")
-		return m, nil
+		return m.handleDeleteMsgFailed(msg)
 
 	case editMsgFailedMsg:
-		if m.st != nil {
-			m.st.SetMessages(msg.chatID, msg.messages)
-			if msg.chatID == m.currentChatID {
-				m.chat.SetMessagesKeepScroll(m.st.Messages(m.currentChatID))
-			}
-		}
-		m.statusBar.SetStatus("Edit failed")
-		return m, nil
+		return m.handleEditMsgFailed(msg)
 
 	case components.ReactConfirmedMsg:
-		m.reactionPicker = nil
-		if m.st == nil || m.tgClient == nil {
-			return m, nil
-		}
-		chatID := m.currentChatID
-		msgID := m.reactionTargetID
-		emoji := msg.Emoji
-		currentReactions := m.st.Messages(chatID)
-		var msgReactions []store.Reaction
-		for _, sm := range currentReactions {
-			if sm.ID == msgID {
-				msgReactions = sm.Reactions
-				break
-			}
-		}
-		alreadyChosen := false
-		for _, r := range msgReactions {
-			if r.Emoji == emoji && r.IsChosen {
-				alreadyChosen = true
-				break
-			}
-		}
-		sendEmoji := emoji
-		if alreadyChosen {
-			sendEmoji = ""
-		}
-		origReactions := make([]store.Reaction, len(msgReactions))
-		copy(origReactions, msgReactions)
-		newReactions := buildOptimisticReactions(msgReactions, emoji)
-		m.st.UpdateMessageReactions(chatID, msgID, newReactions)
-		m.chat.SetMessagesKeepScroll(m.st.Messages(chatID))
-		chat, ok := m.st.GetChat(chatID)
-		if !ok {
-			return m, nil
-		}
-		client := m.tgClient
-		peer := chat.Peer
-		return m, func() tea.Msg {
-			if err := client.SendReaction(context.Background(), peer, msgID, sendEmoji); err != nil {
-				return reactionFailedMsg{chatID: chatID, msgID: msgID, reactions: origReactions}
-			}
-			return nil
-		}
+		return m.handleReactConfirmed(msg)
 
 	case components.DeleteMsgRequest:
-		m.contextMenu = nil
-		if m.st == nil {
-			return m, nil
-		}
-		chatID := m.currentChatID
-		origMessages := m.st.Messages(chatID)
-		m.st.RemoveMessage(chatID, msg.MsgID)
-		m.chat.RemoveMessage(msg.MsgID)
-		if m.tgClient == nil {
-			return m, nil
-		}
-		chat, ok := m.st.GetChat(chatID)
-		if !ok {
-			return m, nil
-		}
-		client := m.tgClient
-		peer := chat.Peer
-		msgID := msg.MsgID
-		revoke := msg.Revoke
-		return m, func() tea.Msg {
-			if err := client.DeleteMessages(context.Background(), peer, []int{msgID}, revoke); err != nil {
-				return deleteMsgFailedMsg{chatID: chatID, messages: origMessages}
-			}
-			return nil
-		}
+		return m.handleDeleteMsg(msg)
 
 	case components.LogoTickMsg:
 		m.logo.Tick()
@@ -1010,45 +836,6 @@ func (m *RootModel) activateEdit(msgID int) tea.Cmd {
 	return nil
 }
 
-func buildOptimisticReactions(current []store.Reaction, emoji string) []store.Reaction {
-	alreadyChosen := false
-	for _, r := range current {
-		if r.Emoji == emoji && r.IsChosen {
-			alreadyChosen = true
-			break
-		}
-	}
-	out := make([]store.Reaction, 0, len(current)+1)
-	emojiFound := false
-	for _, r := range current {
-		nr := r
-		if r.Emoji == emoji {
-			emojiFound = true
-			if alreadyChosen {
-				nr.IsChosen = false
-				nr.Count--
-				if nr.Count <= 0 {
-					continue
-				}
-			} else {
-				nr.IsChosen = true
-				nr.Count++
-			}
-		} else if r.IsChosen {
-			nr.IsChosen = false
-			nr.Count--
-			if nr.Count <= 0 {
-				continue
-			}
-		}
-		out = append(out, nr)
-	}
-	if !alreadyChosen && !emojiFound && emoji != "" {
-		out = append(out, store.Reaction{Emoji: emoji, Count: 1, IsChosen: true})
-	}
-	return out
-}
-
 func (m RootModel) focusPrev() (tea.Model, tea.Cmd) {
 	hasFolders := m.folderBar != nil && m.folderBar.HasFolders()
 	switch m.focus {
@@ -1242,4 +1029,3 @@ func readClipboardCmd() tea.Cmd {
 		return tea.PasteMsg{Content: str}
 	}
 }
-
