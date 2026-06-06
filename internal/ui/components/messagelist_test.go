@@ -1068,3 +1068,26 @@ func TestMessageList_StickerPlaceholder_NoEmojiFallback(t *testing.T) {
 	ml.SetMessages([]store.Message{{ID: 1, Media: &store.MediaRef{Kind: store.MediaSticker}}})
 	assert.Contains(t, ml.View(), "sticker")
 }
+
+func TestMessageList_VoiceWaveform(t *testing.T) {
+	// Waveform packing samples [31,1,31] -> LE {0x1F, 0x7C}; renders block bars.
+	ml := components.NewMessageList(20, 80)
+	ml.SetMessages([]store.Message{{ID: 1, Media: &store.MediaRef{
+		Kind: store.MediaVoice, Duration: 15, Waveform: []byte{0x1F, 0x7C},
+	}}})
+	view := ml.View()
+	assert.Contains(t, view, "🎤")
+	assert.Contains(t, view, "█")
+	assert.Contains(t, view, "0:15")
+}
+
+func TestMessageList_AudioMetadata(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	ml.SetMessages([]store.Message{{ID: 1, Media: &store.MediaRef{
+		Kind: store.MediaAudio, Duration: 200, Title: "Song", Performer: "Artist",
+	}}})
+	view := ml.View()
+	assert.Contains(t, view, "Song")
+	assert.Contains(t, view, "Artist")
+	assert.Contains(t, view, "3:20")
+}

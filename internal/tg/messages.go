@@ -372,9 +372,18 @@ func classifyDocument(m *tg.MessageMediaDocument) *store.MediaRef {
 	case video != nil:
 		return &store.MediaRef{Kind: store.MediaVideo}
 	case audio != nil && audio.Voice:
-		return &store.MediaRef{Kind: store.MediaVoice}
+		return &store.MediaRef{
+			Kind:     store.MediaVoice,
+			Duration: audio.Duration,
+			Waveform: audio.Waveform,
+		}
 	case audio != nil:
-		return &store.MediaRef{Kind: store.MediaAudio}
+		return &store.MediaRef{
+			Kind:      store.MediaAudio,
+			Duration:  audio.Duration,
+			Title:     audio.Title,
+			Performer: audio.Performer,
+		}
 	default:
 		return &store.MediaRef{Kind: store.MediaFile}
 	}

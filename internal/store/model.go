@@ -64,8 +64,12 @@ const (
 type MediaRef struct {
 	Kind  MediaKind
 	Emoji string // sticker's alt emoji; populated now for stickers
+	// Audio/voice metadata.
+	Duration  int    // seconds, for video/voice/audio/note
+	Waveform  []byte // bitpacked 5-bit amplitude samples, for voice messages
+	Title     string // song title, for audio
+	Performer string // performer, for audio
 	// Populated in a later iteration:
-	Duration int    // seconds, for video/voice/audio/note
 	FileName string // for files
 	Size     int64  // bytes, for files
 }

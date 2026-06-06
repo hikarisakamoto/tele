@@ -254,9 +254,9 @@ func placeholderFor(m *store.MediaRef) string {
 	case store.MediaVideoNote:
 		return "⭕ video note"
 	case store.MediaVoice:
-		return "🎤 voice"
+		return voiceLabel(m)
 	case store.MediaAudio:
-		return "🎵 audio"
+		return audioLabel(m)
 	case store.MediaSticker:
 		if m.Emoji != "" {
 			return m.Emoji + " sticker"

@@ -399,6 +399,28 @@ func TestClassifyMedia_StickerEmoji(t *testing.T) {
 	assert.Equal(t, "🐱", m.Emoji)
 }
 
+func TestClassifyMedia_VoiceWaveformDuration(t *testing.T) {
+	wave := []byte{0x01, 0x02, 0x03}
+	m := classifyMedia(docMedia(&tg.DocumentAttributeAudio{
+		Voice: true, Duration: 15, Waveform: wave,
+	}))
+	require.NotNil(t, m)
+	assert.Equal(t, store.MediaVoice, m.Kind)
+	assert.Equal(t, 15, m.Duration)
+	assert.Equal(t, wave, m.Waveform)
+}
+
+func TestClassifyMedia_AudioTitlePerformerDuration(t *testing.T) {
+	m := classifyMedia(docMedia(&tg.DocumentAttributeAudio{
+		Duration: 200, Title: "Song", Performer: "Artist",
+	}))
+	require.NotNil(t, m)
+	assert.Equal(t, store.MediaAudio, m.Kind)
+	assert.Equal(t, 200, m.Duration)
+	assert.Equal(t, "Song", m.Title)
+	assert.Equal(t, "Artist", m.Performer)
+}
+
 func TestConvertMessage_SetsMediaForPhoto(t *testing.T) {
 	raw := &tg.Message{
 		ID: 1, Date: 1700000000,
