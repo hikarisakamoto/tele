@@ -218,6 +218,12 @@ func (ml *MessageList) PhotoContentCols() int {
 	return ml.photoContentCols()
 }
 
+// PhotoFootprint exposes the active renderer's row footprint for an image, so
+// callers (e.g. Kitty transmit) stay in lock-step with the rendered grid.
+func (ml *MessageList) PhotoFootprint(imgW, imgH, cols int) int {
+	return ml.renderer.Footprint(imgW, imgH, cols)
+}
+
 // SetImage caches a downloaded photo for rendering.
 // If the viewport was at the natural bottom before the image changed message heights,
 // it is re-anchored to the new natural bottom so newest messages stay visible.
@@ -605,7 +611,7 @@ func (ml *MessageList) msgHeight(msg store.Message) int {
 			if img, ok := ml.images[msg.Photo.ID]; ok {
 				cols := ml.photoContentCols()
 				b := img.Bounds()
-				h += media.PhotoTermLines(b.Dx(), b.Dy(), cols)
+				h += ml.renderer.Footprint(b.Dx(), b.Dy(), cols)
 			} else {
 				h++ // placeholder line
 			}

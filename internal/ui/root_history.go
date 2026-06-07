@@ -110,6 +110,12 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		m.chat.SetImage(msg.PhotoID, msg.Image)
 		return m, m.transmitPhotoCmd(msg.PhotoID, msg.Image)
 
+	case kittyTransmittedMsg:
+		// Placement is now on the terminal; advertise it so the next render
+		// emits the placeholder grid over an existing placement.
+		m.kittyStore.MarkTransmitted(msg.photoID, msg.cols)
+		return m, nil
+
 	case FullPhotoReadyMsg:
 		m.fullImageCache[msg.PhotoID] = msg.Image
 		return m, nil

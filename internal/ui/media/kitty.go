@@ -106,13 +106,32 @@ func TransmitSeq(id uint32, img image.Image, cols, rows int) (string, error) {
 // KittyRenderer emits Unicode-placeholder grids that reference images already
 // transmitted to the terminal via KittyStore. Output is cached per (photo, cols).
 type KittyRenderer struct {
-	store *KittyStore
-	cache map[blockKey][]string
+	store      *KittyStore
+	cache      map[blockKey][]string
+	cellAspect float64
 }
 
-// NewKittyRenderer returns a renderer backed by the given store.
+// NewKittyRenderer returns a renderer backed by the given store. The cell aspect
+// is detected from the terminal so real-pixel placements match the image.
 func NewKittyRenderer(store *KittyStore) *KittyRenderer {
-	return &KittyRenderer{store: store, cache: make(map[blockKey][]string)}
+	return &KittyRenderer{
+		store:      store,
+		cache:      make(map[blockKey][]string),
+		cellAspect: CellAspect(),
+	}
+}
+
+// SetCellAspect overrides the cell aspect ratio (height/width). Mainly for tests
+// and for refreshing after a terminal font/zoom change.
+func (r *KittyRenderer) SetCellAspect(a float64) {
+	r.cellAspect = a
+	clear(r.cache)
+}
+
+// Footprint returns the row height for a real-pixel placement at the terminal's
+// cell aspect ratio.
+func (r *KittyRenderer) Footprint(imgW, imgH, cols int) int {
+	return kittyTermLines(imgW, imgH, cols, r.cellAspect)
 }
 
 // Render returns placeholder lines, or nil if the image is not yet transmitted
@@ -126,7 +145,7 @@ func (r *KittyRenderer) Render(photoID int64, img image.Image, cols int) []strin
 		return v
 	}
 	b := img.Bounds()
-	rows := PhotoTermLines(b.Dx(), b.Dy(), cols)
+	rows := r.Footprint(b.Dx(), b.Dy(), cols)
 	v := placeholderLines(r.store.IDFor(photoID), cols, rows)
 	r.cache[k] = v
 	return v

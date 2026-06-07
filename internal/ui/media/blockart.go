@@ -84,6 +84,11 @@ func (r *BlockRenderer) Render(photoID int64, img image.Image, cols int) []strin
 	return v
 }
 
+// Footprint returns the half-block row height (2 image rows per cell).
+func (r *BlockRenderer) Footprint(imgW, imgH, cols int) int {
+	return PhotoTermLines(imgW, imgH, cols)
+}
+
 // Reset clears the render cache (call when the target width changes).
 func (r *BlockRenderer) Reset() {
 	clear(r.cache)
@@ -109,6 +114,28 @@ func PhotoTermLines(imgW, imgH, cols int) int {
 		targetH = 2
 	}
 	rows := (targetH + 1) / 2
+	if rows > maxPhotoRows {
+		rows = maxPhotoRows
+	}
+	return rows
+}
+
+// kittyTermLines returns the terminal-row footprint for an image rendered as
+// real pixels (Kitty), scaling by the terminal's true cell aspect ratio
+// (cellAspect = cellHeight/cellWidth) so the cols×rows cell box matches the
+// image's aspect. Unlike PhotoTermLines (which assumes 2:1 for half-blocks),
+// this prevents the picture from being shorter than its reserved box.
+func kittyTermLines(imgW, imgH, cols int, cellAspect float64) int {
+	if imgW == 0 || cols == 0 {
+		return 1
+	}
+	if cellAspect <= 0 {
+		cellAspect = defaultCellAspect
+	}
+	rows := int(float64(cols)*float64(imgH)/float64(imgW)/cellAspect + 0.5)
+	if rows < 1 {
+		rows = 1
+	}
 	if rows > maxPhotoRows {
 		rows = maxPhotoRows
 	}

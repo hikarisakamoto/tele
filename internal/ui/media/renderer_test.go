@@ -57,6 +57,23 @@ func TestPhotoTermLines_CapsTallImages(t *testing.T) {
 	require.Greater(t, rows, 0)
 }
 
+func TestKittyRenderer_FootprintUsesCellAspect(t *testing.T) {
+	// The Kitty path scales real pixels by the terminal's true cell aspect.
+	// Taller cells (larger H/W) must reserve FEWER rows for the same image,
+	// otherwise the picture is shorter than its reserved box (gap / "smaller").
+	r := media.NewKittyRenderer(media.NewKittyStore())
+	const cols = 60
+	img := sampleImage(40, 30) // landscape 4:3
+
+	r.SetCellAspect(2.0)
+	base := r.Footprint(img.Bounds().Dx(), img.Bounds().Dy(), cols)
+
+	r.SetCellAspect(2.5)
+	taller := r.Footprint(img.Bounds().Dx(), img.Bounds().Dy(), cols)
+
+	require.Less(t, taller, base, "taller cells must reserve fewer rows")
+}
+
 func TestKittyRenderer_TallImageStaysWithinDiacritics(t *testing.T) {
 	store := media.NewKittyStore()
 	r := media.NewKittyRenderer(store)

@@ -59,6 +59,21 @@ type FullPhotoReadyMsg struct {
 	Image   image.Image
 }
 
+// kittyTransmittedMsg is emitted after a photo's Kitty virtual placement has
+// been written to the terminal. Only then is the image marked ready, so the
+// placeholder grid is never painted before the placement exists.
+type kittyTransmittedMsg struct {
+	photoID int64
+	cols    int
+}
+
+// retransmitTickMsg fires after the photo-width debounce window. Only the tick
+// whose gen matches the latest scheduled one performs the retransmit; earlier
+// ticks were superseded by a newer width change.
+type retransmitTickMsg struct {
+	gen int
+}
+
 type markReadDoneMsg struct {
 	chatID int64
 	maxID  int
@@ -99,6 +114,7 @@ type RootModel struct {
 	imageMode         media.Mode
 	kittyStore        *media.KittyStore
 	lastPhotoCols     int
+	retransmitGen     int
 	searchModel       *screens.SearchModel
 	onChatOpen        func(int64)
 	nextSentinel      int
@@ -273,11 +289,13 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		markReadDoneMsg,
 		PhotoReadyMsg,
 		FullPhotoReadyMsg,
+		kittyTransmittedMsg,
 		components.OpenInViewerRequest:
 		return m.updateNetworkMsg(msg)
 	// UI/layout/animation messages
 	case tea.BackgroundColorMsg,
 		tea.WindowSizeMsg,
+		retransmitTickMsg,
 		FolderFiltersMsg,
 		screens.FolderSelectedMsg,
 		screens.TransitionToMainMsg,
@@ -573,29 +591,48 @@ func (m RootModel) transmitPhotoCmd(photoID int64, img image.Image) tea.Cmd {
 	cols := m.chat.PhotoContentCols()
 	id := m.kittyStore.IDFor(photoID)
 	b := img.Bounds()
-	rows := media.PhotoTermLines(b.Dx(), b.Dy(), cols)
-	m.kittyStore.MarkTransmitted(photoID, cols) // optimistic: render emits placeholders
-	return func() tea.Msg {
-		seq, err := media.TransmitSeq(id, img, cols, rows)
-		if err != nil {
-			return nil
-		}
-		return tea.Raw(seq)()
-	}
+	rows := m.chat.PhotoFootprint(b.Dx(), b.Dy(), cols)
+	// Order matters: write the placement to the terminal FIRST, then mark the
+	// image ready (kittyTransmittedMsg) so the next render emits placeholders
+	// only once the placement exists. Marking ready before the transmit lands
+	// races the repaint and intermittently leaves the photo mispositioned.
+	return tea.Sequence(
+		func() tea.Msg {
+			seq, err := media.TransmitSeq(id, img, cols, rows)
+			if err != nil {
+				return nil
+			}
+			return tea.Raw(seq)()
+		},
+		func() tea.Msg {
+			return kittyTransmittedMsg{photoID: photoID, cols: cols}
+		},
+	)
 }
 
-// retransmitOnColsChange re-transmits Kitty images when the photo content width
-// (in cells) actually changed since the last layout update. Photo width is
-// photoContentCols (chat-pane, capped), not the window width, so this fires on
-// any layout change that affects it (window resize, folder bar show/hide) and
-// skips window resizes that leave the column count unchanged.
+// retransmitDebounce is the quiet period after the last photo-width change
+// before images are re-transmitted. A resize drag fires many WindowSizeMsgs in
+// quick succession; debouncing collapses them into a single retransmit at the
+// final width. Without it, overlapping async transmits land out of order and
+// leave the Kitty placement at a stale size (photo renders smaller than grid).
+const retransmitDebounce = 90 * time.Millisecond
+
+// retransmitOnColsChange schedules a debounced retransmit when the photo content
+// width (in cells) actually changed. Photo width is photoContentCols (chat-pane,
+// capped), not the window width, so this fires on any layout change that affects
+// it (window resize, folder bar show/hide) and skips changes that leave the
+// column count unchanged. Only the latest scheduled tick performs the work.
 func (m *RootModel) retransmitOnColsChange() tea.Cmd {
 	cols := m.chat.PhotoContentCols()
 	if cols == m.lastPhotoCols {
 		return nil
 	}
 	m.lastPhotoCols = cols
-	return m.retransmitChatCmd()
+	m.retransmitGen++
+	gen := m.retransmitGen
+	return tea.Tick(retransmitDebounce, func(time.Time) tea.Msg {
+		return retransmitTickMsg{gen: gen}
+	})
 }
 
 // retransmitChatCmd deletes all terminal images and re-transmits the current
