@@ -441,3 +441,45 @@ func TestConvertMessage_NoMediaForText(t *testing.T) {
 	require.True(t, ok)
 	assert.Nil(t, msg.Media)
 }
+
+func TestConvertMessage_SetsDocumentRefAndFileMeta(t *testing.T) {
+	raw := &tg.Message{
+		ID: 7, Date: 1700000000,
+		Media: &tg.MessageMediaDocument{Document: &tg.Document{
+			ID: 99, AccessHash: 1234, FileReference: []byte{0xDE, 0xAD},
+			DCID: 2, MimeType: "audio/ogg", Size: 4096,
+			Attributes: []tg.DocumentAttributeClass{
+				&tg.DocumentAttributeFilename{FileName: "voice.ogg"},
+				&tg.DocumentAttributeAudio{Voice: true, Duration: 5},
+			},
+		}},
+	}
+	msg, ok := convertMessage(raw, 10)
+	require.True(t, ok)
+	require.NotNil(t, msg.Document)
+	assert.Equal(t, int64(99), msg.Document.ID)
+	assert.Equal(t, int64(1234), msg.Document.AccessHash)
+	assert.Equal(t, []byte{0xDE, 0xAD}, msg.Document.FileReference)
+	assert.Equal(t, 2, msg.Document.DCID)
+	assert.Equal(t, "audio/ogg", msg.Document.MimeType)
+	assert.Equal(t, int64(4096), msg.Document.Size)
+	assert.Equal(t, "voice.ogg", msg.Document.FileName)
+	require.NotNil(t, msg.Media)
+	assert.Equal(t, int64(4096), msg.Media.Size)
+	assert.Equal(t, "voice.ogg", msg.Media.FileName)
+}
+
+func TestConvertMessage_DocumentThumbSize(t *testing.T) {
+	raw := &tg.Message{
+		ID: 8, Date: 1700000000,
+		Media: &tg.MessageMediaDocument{Document: &tg.Document{
+			ID:         1,
+			Thumbs:     []tg.PhotoSizeClass{&tg.PhotoSize{Type: "m", W: 320, H: 240}},
+			Attributes: []tg.DocumentAttributeClass{&tg.DocumentAttributeVideo{}},
+		}},
+	}
+	msg, ok := convertMessage(raw, 1)
+	require.True(t, ok)
+	require.NotNil(t, msg.Document)
+	assert.Equal(t, "m", msg.Document.ThumbSize)
+}

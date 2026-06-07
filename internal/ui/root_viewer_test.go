@@ -28,3 +28,20 @@ func TestOpenInViewer_CreatesFileInTmpDir(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
+
+func TestWriteTempMediaFile_WritesBytesWithExtension(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte("opus-bytes")
+
+	path, err := writeTempMediaFile(data, dir, ".ogg")
+	require.NoError(t, err)
+
+	assert.Equal(t, ".ogg", filepath.Ext(path))
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, data, got)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}

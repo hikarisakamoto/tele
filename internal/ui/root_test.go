@@ -41,6 +41,12 @@ func (m *mockTGClient) MarkRead(_ context.Context, _ store.Peer, _ int) error { 
 func (m *mockTGClient) DownloadPhoto(_ context.Context, _ store.PhotoRef) (image.Image, error) {
 	return nil, nil
 }
+func (m *mockTGClient) DownloadDocument(_ context.Context, _ store.DocumentRef) ([]byte, error) {
+	return nil, nil
+}
+func (m *mockTGClient) DownloadDocumentThumb(_ context.Context, _ store.DocumentRef) (image.Image, error) {
+	return nil, nil
+}
 func (m *mockTGClient) EditMessage(_ context.Context, _ store.Peer, _ int, _ string) error {
 	return nil
 }

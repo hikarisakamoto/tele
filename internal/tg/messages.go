@@ -389,6 +389,27 @@ func classifyDocument(m *tg.MessageMediaDocument) *store.MediaRef {
 	}
 }
 
+// buildDocumentRef builds a download-capable reference from a Telegram document,
+// picking the best thumbnail PhotoSize and the filename attribute when present.
+func buildDocumentRef(doc *tg.Document) *store.DocumentRef {
+	ref := &store.DocumentRef{
+		ID:            doc.ID,
+		AccessHash:    doc.AccessHash,
+		FileReference: doc.FileReference,
+		DCID:          doc.DCID,
+		MimeType:      doc.MimeType,
+		Size:          doc.Size,
+		ThumbSize:     pickThumbSize(doc.Thumbs),
+	}
+	for _, a := range doc.Attributes {
+		if fn, ok := a.(*tg.DocumentAttributeFilename); ok {
+			ref.FileName = fn.FileName
+			break
+		}
+	}
+	return ref
+}
+
 func convertMessage(raw tg.MessageClass, chatID int64) (store.Message, bool) {
 	msg, ok := raw.(*tg.Message)
 	if !ok {
@@ -429,6 +450,17 @@ func convertMessage(raw tg.MessageClass, chatID int64) (store.Message, bool) {
 					DCID:          photo.DCID,
 					ThumbSize:     thumb,
 					FullThumbSize: pickFullThumbSize(photo.Sizes),
+				}
+			}
+		}
+	}
+	if media, ok := msg.Media.(*tg.MessageMediaDocument); ok {
+		if doc, ok := media.Document.(*tg.Document); ok {
+			out.Document = buildDocumentRef(doc)
+			if out.Media != nil {
+				out.Media.Size = doc.Size
+				if out.Document.FileName != "" {
+					out.Media.FileName = out.Document.FileName
 				}
 			}
 		}

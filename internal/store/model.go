@@ -43,6 +43,21 @@ type PhotoRef struct {
 	FullThumbSize string // full quality: best large size ("x"→800px, "y"→1280px, "w"→2560px)
 }
 
+// DocumentRef is the download-capable reference for document-backed media
+// (video, round video, voice, audio, sticker, gif, file). The full file is
+// fetched via DownloadDocument; ThumbSize (when present) names a PhotoSize in
+// the document's thumbnail set for an inline preview.
+type DocumentRef struct {
+	ID            int64
+	AccessHash    int64
+	FileReference []byte
+	DCID          int
+	ThumbSize     string // best thumbnail PhotoSize type, "" if no thumbnail
+	MimeType      string
+	FileName      string
+	Size          int64
+}
+
 // MediaKind classifies the media a message carries, for display purposes.
 type MediaKind int
 
@@ -69,9 +84,9 @@ type MediaRef struct {
 	Waveform  []byte // bitpacked 5-bit amplitude samples, for voice messages
 	Title     string // song title, for audio
 	Performer string // performer, for audio
-	// Populated in a later iteration:
-	FileName string // for files
-	Size     int64  // bytes, for files
+	// File metadata (from the document), populated for document-backed media.
+	FileName string // original file name
+	Size     int64  // bytes
 }
 
 type Chat struct {
@@ -120,10 +135,11 @@ type Message struct {
 	Date         time.Time
 	IsOut        bool
 	Entities     []MessageEntity
-	Media        *MediaRef  // nil if message has no media
-	Photo        *PhotoRef  // nil if message has no photo
-	ReplyToMsgID int        // 0 if not a reply
-	EditDate     *time.Time // nil if not edited
+	Media        *MediaRef    // nil if message has no media
+	Photo        *PhotoRef    // nil if message has no photo
+	Document     *DocumentRef // nil if message has no document-backed media
+	ReplyToMsgID int          // 0 if not a reply
+	EditDate     *time.Time   // nil if not edited
 	Reactions    []Reaction
 }
 

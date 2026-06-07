@@ -44,6 +44,14 @@ func (m *mockClient) DownloadPhoto(_ context.Context, _ store.PhotoRef) (image.I
 	return nil, nil
 }
 
+func (m *mockClient) DownloadDocument(_ context.Context, _ store.DocumentRef) ([]byte, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DownloadDocumentThumb(_ context.Context, _ store.DocumentRef) (image.Image, error) {
+	return nil, nil
+}
+
 func (m *mockClient) DeleteMessages(_ context.Context, _ store.Peer, _ []int, _ bool) error {
 	return nil
 }

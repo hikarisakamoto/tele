@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"image"
 	"image/color"
@@ -479,20 +480,29 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func openInViewer(img image.Image, tmpDir string) {
-	f, err := os.CreateTemp(tmpDir, "tele-photo-*.jpg")
+// writeTempMediaFile writes data to a private (0600) temp file in tmpDir with
+// the given extension and returns its path.
+func writeTempMediaFile(data []byte, tmpDir, ext string) (string, error) {
+	f, err := os.CreateTemp(tmpDir, "tele-media-*"+ext)
 	if err != nil {
-		return
+		return "", err
 	}
 	name := f.Name()
 	_ = os.Chmod(name, 0600)
-	if err := jpeg.Encode(f, img, nil); err != nil {
+	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
 		_ = os.Remove(name)
-		return
+		return "", err
 	}
-	_ = f.Close()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(name)
+		return "", err
+	}
+	return name, nil
+}
 
+// openPath hands a file to the OS default application.
+func openPath(name string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -501,6 +511,18 @@ func openInViewer(img image.Image, tmpDir string) {
 		cmd = exec.Command("xdg-open", name)
 	}
 	_ = cmd.Start()
+}
+
+func openInViewer(img image.Image, tmpDir string) {
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		return
+	}
+	name, err := writeTempMediaFile(buf.Bytes(), tmpDir, ".jpg")
+	if err != nil {
+		return
+	}
+	openPath(name)
 }
 
 func downloadPhotoCmd(client internaltg.Client, ref store.PhotoRef) tea.Cmd {
