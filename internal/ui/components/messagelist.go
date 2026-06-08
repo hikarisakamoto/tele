@@ -129,8 +129,15 @@ func firstLine(s string) string {
 	return s
 }
 
-func measurePreviewBlock(senderName string, maxContentW int) int {
+// measurePreviewBlock returns the content width needed for a reply preview
+// block, accounting for both the original sender's name and the quoted snippet,
+// capped at maxContentW. Measuring the snippet keeps a short reply (e.g. "ok")
+// from squeezing the original message down to an unreadable width.
+func measurePreviewBlock(senderName, snippet string, maxContentW int) int {
 	w := lipgloss.Width(quoteGlyph + inNameStyle.Render(senderName))
+	if sw := lipgloss.Width(quoteGlyph + quoteStyle.Render(snippet)); sw > w {
+		w = sw
+	}
 	if w > maxContentW {
 		return maxContentW
 	}
@@ -971,7 +978,7 @@ func (ml *MessageList) renderMessage(msg store.Message, selected bool) []string 
 		orig := ml.findMessage(msg.ReplyToMsgID)
 		var minW int
 		if orig != nil {
-			minW = measurePreviewBlock(replyName(orig), maxContentW)
+			minW = measurePreviewBlock(replyName(orig), firstLine(orig.Text), maxContentW)
 		} else {
 			w := lipgloss.Width(quoteGlyph + quoteStyle.Render("Original not available"))
 			if w > maxContentW {
@@ -1065,6 +1072,10 @@ func (ml *MessageList) renderMessage(msg store.Message, selected bool) []string 
 
 	if msg.Forward != nil {
 		sideLines = append(sideLines, renderForwardLines(msg.Forward.From, actualW, bs)...)
+		// Separate the forward header from any following content with a blank line.
+		if msg.ReplyToMsgID != 0 || msg.Text != "" || msg.Media != nil {
+			sideLines = append(sideLines, bs.Render(b.Left)+strings.Repeat(" ", innerW)+bs.Render(b.Right))
+		}
 	}
 
 	if msg.ReplyToMsgID != 0 {

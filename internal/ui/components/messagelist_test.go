@@ -811,6 +811,71 @@ func TestMessageList_ForwardBubble_LongNameNoOverflow(t *testing.T) {
 	assert.NotContains(t, view, longName)
 }
 
+func TestMessageList_ForwardBubble_HasBlankLineSeparator(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	now := time.Now()
+	msgs := []store.Message{
+		{ID: 1, ChatID: 1, Text: "forwarded body", Date: now,
+			Forward: &store.ForwardInfo{From: "Bob Smith"}},
+	}
+	ml.SetMessages(msgs)
+	lines := strings.Split(stripANSI(ml.View()), "\n")
+
+	nameIdx, textIdx := -1, -1
+	for i, l := range lines {
+		if strings.Contains(l, "Bob Smith") && nameIdx == -1 {
+			nameIdx = i
+		}
+		if strings.Contains(l, "forwarded body") {
+			textIdx = i
+		}
+	}
+	require.Greater(t, nameIdx, 0, "forward name line not found")
+	require.Greater(t, textIdx, nameIdx, "message body must come after forward header")
+
+	// Without separator: gap=1 (name immediately followed by body).
+	// With separator: gap=2 (name + blank + body).
+	assert.Greater(t, textIdx-nameIdx, 1,
+		"expected blank separator line between forward header and message body")
+}
+
+func TestMessageList_ForwardBubble_NoBlankLineWhenEmpty(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	now := time.Now()
+	msgs := []store.Message{
+		{ID: 1, ChatID: 1, Date: now, Forward: &store.ForwardInfo{From: "Bob Smith"}},
+	}
+	ml.SetMessages(msgs)
+	lines := strings.Split(stripANSI(ml.View()), "\n")
+
+	// Header-only forward: 2 border lines + label + name = 4 bubble lines, no
+	// trailing blank separator.
+	bubbleLines := 0
+	for _, l := range lines {
+		if strings.ContainsAny(l, "╭╰│") {
+			bubbleLines++
+		}
+	}
+	assert.Equal(t, 4, bubbleLines,
+		"header-only forward should not append a blank separator line")
+}
+
+func TestMessageList_ReplyBubble_WidensToShowSnippet(t *testing.T) {
+	ml := components.NewMessageList(20, 80)
+	now := time.Now()
+	const origText = "This is a fairly long original message worth reading"
+	orig := store.Message{ID: 1, ChatID: 1, SenderName: "Alice", Text: origText, Date: now}
+	// A short reply must not squeeze the quoted original down to nothing.
+	reply := store.Message{ID: 2, ChatID: 1, Text: "ok", ReplyToMsgID: 1, Date: now}
+	ml.SetMessages([]store.Message{orig, reply})
+	view := stripANSI(ml.View())
+
+	assert.Contains(t, view, origText,
+		"reply bubble should widen to show the full original snippet")
+	assert.NotContains(t, view, "…",
+		"original snippet should fit without truncation at this width")
+}
+
 func TestMessageList_NoForward_NoForwardedLabel(t *testing.T) {
 	ml := components.NewMessageList(40, 80)
 	msgs := []store.Message{
