@@ -246,6 +246,91 @@ func TestBuildSendRequest_WithoutReply(t *testing.T) {
 	assert.Nil(t, req.ReplyTo)
 }
 
+func TestParseHistory_ForwardFromUser_SetsForwardName(t *testing.T) {
+	now := time.Now()
+	fwd := tg.MessageFwdHeader{}
+	fwd.SetFromID(&tg.PeerUser{UserID: 77})
+	rawMsg := &tg.Message{
+		ID:      1,
+		PeerID:  &tg.PeerUser{UserID: 42},
+		Message: "forwarded text",
+		Date:    int(now.Unix()),
+	}
+	rawMsg.SetFwdFrom(fwd)
+	raw := &tg.MessagesMessages{
+		Messages: []tg.MessageClass{rawMsg},
+		Users: []tg.UserClass{
+			&tg.User{ID: 42, FirstName: "Alice"},
+			&tg.User{ID: 77, FirstName: "Bob"},
+		},
+	}
+	msgs := parseHistory(raw, 42)
+	require.Len(t, msgs, 1)
+	require.NotNil(t, msgs[0].Forward)
+	assert.Equal(t, "Bob", msgs[0].Forward.From)
+}
+
+func TestParseHistory_ForwardFromChannel_SetsChannelTitle(t *testing.T) {
+	now := time.Now()
+	fwd := tg.MessageFwdHeader{}
+	fwd.SetFromID(&tg.PeerChannel{ChannelID: 500})
+	rawMsg := &tg.Message{
+		ID:      1,
+		PeerID:  &tg.PeerUser{UserID: 42},
+		Message: "forwarded post",
+		Date:    int(now.Unix()),
+	}
+	rawMsg.SetFwdFrom(fwd)
+	raw := &tg.MessagesMessages{
+		Messages: []tg.MessageClass{rawMsg},
+		Users:    []tg.UserClass{&tg.User{ID: 42, FirstName: "Alice"}},
+		Chats:    []tg.ChatClass{&tg.Channel{ID: 500, Title: "Tech News"}},
+	}
+	msgs := parseHistory(raw, 42)
+	require.Len(t, msgs, 1)
+	require.NotNil(t, msgs[0].Forward)
+	assert.Equal(t, "Tech News", msgs[0].Forward.From)
+}
+
+func TestParseHistory_ForwardHiddenSender_UsesFromName(t *testing.T) {
+	now := time.Now()
+	fwd := tg.MessageFwdHeader{}
+	fwd.SetFromName("Anon Doe")
+	rawMsg := &tg.Message{
+		ID:      1,
+		PeerID:  &tg.PeerUser{UserID: 42},
+		Message: "forwarded text",
+		Date:    int(now.Unix()),
+	}
+	rawMsg.SetFwdFrom(fwd)
+	raw := &tg.MessagesMessages{
+		Messages: []tg.MessageClass{rawMsg},
+		Users:    []tg.UserClass{&tg.User{ID: 42, FirstName: "Alice"}},
+	}
+	msgs := parseHistory(raw, 42)
+	require.Len(t, msgs, 1)
+	require.NotNil(t, msgs[0].Forward)
+	assert.Equal(t, "Anon Doe", msgs[0].Forward.From)
+}
+
+func TestParseHistory_NoForward_ForwardIsNil(t *testing.T) {
+	now := time.Now()
+	raw := &tg.MessagesMessages{
+		Messages: []tg.MessageClass{
+			&tg.Message{
+				ID:      1,
+				PeerID:  &tg.PeerUser{UserID: 42},
+				Message: "plain text",
+				Date:    int(now.Unix()),
+			},
+		},
+		Users: []tg.UserClass{&tg.User{ID: 42, FirstName: "Alice"}},
+	}
+	msgs := parseHistory(raw, 42)
+	require.Len(t, msgs, 1)
+	assert.Nil(t, msgs[0].Forward)
+}
+
 func TestParseHistory_ChannelPost_SenderNameIsChannelTitle(t *testing.T) {
 	now := time.Now()
 	raw := &tg.MessagesChannelMessages{

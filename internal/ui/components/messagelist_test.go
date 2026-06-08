@@ -730,6 +730,64 @@ func TestMessageList_ReplyBubble_LongNameTruncated(t *testing.T) {
 	assert.NotContains(t, view, longName)
 }
 
+func TestMessageList_ForwardBubble_ShowsLabelAndName(t *testing.T) {
+	ml := components.NewMessageList(40, 80)
+	now := time.Now()
+	msgs := []store.Message{
+		{ID: 1, ChatID: 1, Text: "hey check this", Date: now,
+			Forward: &store.ForwardInfo{From: "Bob Smith"}},
+	}
+	ml.SetMessages(msgs)
+	view := ml.View()
+
+	assert.Contains(t, view, "Forwarded from")
+	assert.Contains(t, view, "Bob Smith")
+}
+
+func TestMessageList_ForwardBubble_HiddenSender(t *testing.T) {
+	ml := components.NewMessageList(40, 80)
+	now := time.Now()
+	msgs := []store.Message{
+		{ID: 1, ChatID: 1, Text: "hey", Date: now,
+			Forward: &store.ForwardInfo{From: ""}},
+	}
+	ml.SetMessages(msgs)
+	view := ml.View()
+
+	assert.Contains(t, view, "Forwarded from")
+	assert.Contains(t, view, "Hidden")
+}
+
+func TestMessageList_ForwardBubble_LongNameNoOverflow(t *testing.T) {
+	const longName = "Александр Александрович Длинноимённый Захаренко"
+	ml := components.NewMessageList(40, 40)
+	now := time.Now()
+	msgs := []store.Message{
+		{ID: 1, ChatID: 1, Text: "ok", Date: now,
+			Forward: &store.ForwardInfo{From: longName}},
+	}
+	ml.SetMessages(msgs)
+	view := ml.View()
+
+	for _, l := range strings.Split(view, "\n") {
+		if strings.ContainsAny(l, "╭╰│") {
+			assert.LessOrEqual(t, lipgloss.Width(l), 30,
+				"bubble line exceeds maxBubbleW: %q", l)
+		}
+	}
+	assert.Contains(t, view, "…")
+	assert.NotContains(t, view, longName)
+}
+
+func TestMessageList_NoForward_NoForwardedLabel(t *testing.T) {
+	ml := components.NewMessageList(40, 80)
+	msgs := []store.Message{
+		{ID: 1, ChatID: 1, Text: "plain", Date: time.Now()},
+	}
+	ml.SetMessages(msgs)
+	assert.NotContains(t, ml.View(), "Forwarded from")
+}
+
 func TestMessageList_ReplyBubble_NilOrig_ShowsPlaceholder(t *testing.T) {
 	ml := components.NewMessageList(40, 80)
 	msgs := []store.Message{

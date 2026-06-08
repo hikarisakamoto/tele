@@ -55,6 +55,25 @@ func setupDispatcher(
 				msg.SenderName = groupTitle(chat)
 			}
 		}
+		if m, ok := upd.Message.(*tg.Message); ok {
+			if fwd, ok := m.GetFwdFrom(); ok {
+				msg.Forward = forwardInfo(fwd, func(id int64) string {
+					if user, ok := e.Users[id]; ok {
+						name := strings.TrimSpace(user.FirstName + " " + user.LastName)
+						if name != "" {
+							return name
+						}
+					}
+					if ch, ok := e.Channels[id]; ok {
+						return channelTitle(ch)
+					}
+					if chat, ok := e.Chats[id]; ok {
+						return groupTitle(chat)
+					}
+					return ""
+				})
+			}
+		}
 		if shouldSuppress(msg.ID) {
 			return nil
 		}

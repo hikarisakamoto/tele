@@ -147,6 +147,12 @@ type Message struct {
 	ReplyToMsgID int          // 0 if not a reply
 	EditDate     *time.Time   // nil if not edited
 	Reactions    []Reaction
+	Forward      *ForwardInfo // nil if not forwarded
+}
+
+// ForwardInfo describes the origin of a forwarded message.
+type ForwardInfo struct {
+	From string // display name of the original sender; empty if hidden
 }
 
 type EventKind int

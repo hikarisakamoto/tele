@@ -183,6 +183,64 @@ func (ml *MessageList) renderPreviewLines(senderID int64, senderName, snippet st
 	return []string{nameRow, snippetRow}
 }
 
+const (
+	forwardLabelText  = "Forwarded from"
+	forwardHiddenName = "Hidden"
+)
+
+// measureForwardBlock returns the content width needed for a forwarded-message
+// header block (the "Forwarded from" label and the origin name), capped at
+// maxContentW.
+func measureForwardBlock(from string, maxContentW int) int {
+	name := from
+	if name == "" {
+		name = forwardHiddenName
+	}
+	w := lipgloss.Width(quoteGlyph + inNameStyle.Render(name))
+	if lw := lipgloss.Width(quoteGlyph + quoteStyle.Render(forwardLabelText)); lw > w {
+		w = lw
+	}
+	if w > maxContentW {
+		return maxContentW
+	}
+	return w
+}
+
+// renderForwardLines returns the bubble content lines for a forwarded-message
+// header block: a dim "Forwarded from" label line followed by the origin name.
+// An empty from renders the hidden-sender placeholder. actualW is the finalized
+// content width for the bubble.
+func renderForwardLines(from string, actualW int, bs lipgloss.Style) []string {
+	b := lipgloss.RoundedBorder()
+	glyphW := lipgloss.Width(quoteGlyph)
+
+	name := from
+	if name == "" {
+		name = forwardHiddenName
+	}
+
+	maxTextW := actualW - glyphW
+	if maxTextW < 1 {
+		maxTextW = 1
+	}
+
+	label := runewidth.Truncate(forwardLabelText, maxTextW, "…")
+	labelPart := quoteStyle.Render(quoteGlyph) + quoteStyle.Render(label)
+	if lw := lipgloss.Width(labelPart); lw < actualW {
+		labelPart += strings.Repeat(" ", actualW-lw)
+	}
+	labelRow := bs.Render(b.Left) + " " + labelPart + " " + bs.Render(b.Right)
+
+	name = runewidth.Truncate(name, maxTextW, "…")
+	namePart := quoteStyle.Render(quoteGlyph) + inNameStyle.Render(name)
+	if nw := lipgloss.Width(namePart); nw < actualW {
+		namePart += strings.Repeat(" ", actualW-nw)
+	}
+	nameRow := bs.Render(b.Left) + " " + namePart + " " + bs.Render(b.Right)
+
+	return []string{labelRow, nameRow}
+}
+
 // MessageList renders a virtual viewport of messages (newest at bottom).
 type MessageList struct {
 	items             []listItem
@@ -888,6 +946,13 @@ func (ml *MessageList) renderMessage(msg store.Message, selected bool) []string 
 		}
 	}
 
+	// Ensure bubble is wide enough for the forwarded-message header block.
+	if msg.Forward != nil {
+		if minW := measureForwardBlock(msg.Forward.From, maxContentW); actualW < minW {
+			actualW = minW
+		}
+	}
+
 	// Ensure bubble is wide enough for the reply preview block.
 	if msg.ReplyToMsgID != 0 {
 		orig := ml.findMessage(msg.ReplyToMsgID)
@@ -981,8 +1046,13 @@ func (ml *MessageList) renderMessage(msg store.Message, selected bool) []string 
 	}
 	bottom := bs.Render(b.BottomLeft) + reactStr + bs.Render(strings.Repeat(b.Bottom, fillW)) + tsStr + bs.Render(b.BottomRight)
 
-	// Content lines: quote block (if reply), photo art (if any), then text.
+	// Content lines: forward header (if any), reply quote block (if reply),
+	// photo art (if any), then text.
 	var sideLines []string
+
+	if msg.Forward != nil {
+		sideLines = append(sideLines, renderForwardLines(msg.Forward.From, actualW, bs)...)
+	}
 
 	if msg.ReplyToMsgID != 0 {
 		orig := ml.findMessage(msg.ReplyToMsgID)

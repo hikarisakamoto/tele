@@ -242,6 +242,28 @@ func buildChatNameMap(chats []tg.ChatClass) map[int64]string {
 	return m
 }
 
+// forwardInfo builds forward display info from a message's forward header.
+// resolve maps an origin peer id to a display name; it may return "" when the
+// peer is not present in the entity set. Resolution order: origin peer name,
+// then the saved FromName (hidden senders), then the channel post author.
+func forwardInfo(fwd tg.MessageFwdHeader, resolve func(int64) string) *store.ForwardInfo {
+	from := ""
+	if id, ok := fwd.GetFromID(); ok {
+		from = resolve(peerIDFromPeer(id))
+	}
+	if from == "" {
+		if name, ok := fwd.GetFromName(); ok {
+			from = name
+		}
+	}
+	if from == "" {
+		if author, ok := fwd.GetPostAuthor(); ok {
+			from = author
+		}
+	}
+	return &store.ForwardInfo{From: from}
+}
+
 func parseHistory(result tg.MessagesMessagesClass, chatID int64) []store.Message {
 	var rawMsgs []tg.MessageClass
 	var rawUsers []tg.UserClass
@@ -272,6 +294,16 @@ func parseHistory(result tg.MessagesMessagesClass, chatID int64) []store.Message
 					msg.SenderName = name
 				} else {
 					msg.SenderName = chatNameMap[chatID]
+				}
+			}
+			if m, ok := raw.(*tg.Message); ok {
+				if fwd, ok := m.GetFwdFrom(); ok {
+					msg.Forward = forwardInfo(fwd, func(id int64) string {
+						if name := nameMap[id]; name != "" {
+							return name
+						}
+						return chatNameMap[id]
+					})
 				}
 			}
 			out = append(out, msg)

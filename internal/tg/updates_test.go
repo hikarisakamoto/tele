@@ -214,6 +214,41 @@ func TestSetupDispatcher_PrivateMessage_NilFromID_SenderNameIsPeerName(t *testin
 	}
 }
 
+func TestSetupDispatcher_ForwardedMessage_SetsForwardName(t *testing.T) {
+	dispatcher, mustDeliver, _ := newTestDispatcher(t, noSuppress)
+
+	ctx := context.Background()
+	fwd := tg.MessageFwdHeader{}
+	fwd.SetFromID(&tg.PeerUser{UserID: 77})
+	rawMsg := &tg.Message{
+		ID:      30,
+		PeerID:  &tg.PeerUser{UserID: 42},
+		FromID:  &tg.PeerUser{UserID: 42},
+		Message: "forwarded",
+		Date:    int(time.Now().Unix()),
+	}
+	rawMsg.SetFwdFrom(fwd)
+	update := &tg.UpdateNewMessage{Message: rawMsg, Pts: 1, PtsCount: 1}
+
+	err := dispatcher.Handle(ctx, &tg.Updates{
+		Updates: []tg.UpdateClass{update},
+		Users: []tg.UserClass{
+			&tg.User{ID: 42, FirstName: "Alice"},
+			&tg.User{ID: 77, FirstName: "Bob"},
+		},
+	})
+	require.NoError(t, err)
+
+	select {
+	case evt := <-mustDeliver:
+		assert.Equal(t, store.EventNewMessage, evt.Kind)
+		require.NotNil(t, evt.Message.Forward)
+		assert.Equal(t, "Bob", evt.Message.Forward.From)
+	case <-time.After(time.Second):
+		t.Fatal("no event received")
+	}
+}
+
 func TestSetupDispatcher_NewChannelMessage_SenderNameIsChannelTitle(t *testing.T) {
 	dispatcher, mustDeliver, _ := newTestDispatcher(t, noSuppress)
 

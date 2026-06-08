@@ -24,6 +24,17 @@ func TestMessage_Fields(t *testing.T) {
 	assert.True(t, m.IsOut)
 }
 
+func TestMessage_ForwardField(t *testing.T) {
+	m := store.Message{Forward: &store.ForwardInfo{From: "Bob"}}
+	require.NotNil(t, m.Forward)
+	assert.Equal(t, "Bob", m.Forward.From)
+}
+
+func TestMessage_NoForward_ForwardIsNil(t *testing.T) {
+	m := store.Message{ID: 1, Text: "hi"}
+	assert.Nil(t, m.Forward)
+}
+
 func TestMessage_HasEntitiesField(t *testing.T) {
 	msg := store.Message{
 		ID:     1,
