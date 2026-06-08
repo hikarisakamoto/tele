@@ -1,10 +1,13 @@
 name: CI
 
+# Disabled for now — checks run in the release pipeline (release.yml).
+# Re-enable the push/pull_request triggers below to run on every change.
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  workflow_dispatch:
+  # push:
+  #   branches: ["main"]
+  # pull_request:
+  #   branches: ["main"]
 
 jobs:
   ci:
@@ -28,3 +31,30 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
+
+  # Verify the cgo-free static build and tests on the other target OSes. Audio
+  # output is platform-specific (oto on macOS/Windows, PulseAudio on Linux), so
+  # building on real runners catches cross-OS breakage early.
+  cross-build:
+    name: build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build
+        run: go build ./...
+
+      - name: test
+        run: go test ./...

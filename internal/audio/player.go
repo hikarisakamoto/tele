@@ -1,85 +1,44 @@
-// Package audio provides in-app playback of Telegram voice messages: it decodes
-// Opus/Ogg to PCM (pure Go, via pion/opus) and plays it through the system
-// audio device (ebitengine/oto, cgo-free via purego).
 package audio
 
 import (
-	"bytes"
-	"io"
 	"sync"
-
-	"github.com/ebitengine/oto/v3"
+	"time"
 )
 
-// shared oto context: only one may exist per process.
-var (
-	ctxOnce sync.Once
-	ctxInst *oto.Context
-	ctxErr  error
-)
-
-func sharedContext() (*oto.Context, error) {
-	ctxOnce.Do(func() {
-		c, ready, err := oto.NewContext(&oto.NewContextOptions{
-			SampleRate:   sampleRate,
-			ChannelCount: channels,
-			Format:       oto.FormatSignedInt16LE,
-		})
-		if err != nil {
-			ctxErr = err
-			return
-		}
-		<-ready
-		ctxInst = c
-	})
-	return ctxInst, ctxErr
-}
-
-// countingReader tracks how many bytes oto has pulled from the PCM buffer, so
-// the player can report playback position.
-type countingReader struct {
-	r  io.Reader
-	mu sync.Mutex
-	n  int64
-}
-
-func (c *countingReader) Read(p []byte) (int, error) {
-	n, err := c.r.Read(p)
-	c.mu.Lock()
-	c.n += int64(n)
-	c.mu.Unlock()
-	return n, err
-}
-
-func (c *countingReader) count() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.n
+// sink is the platform audio output for a single PCM stream. Implementations
+// (oto on macOS/Windows, PulseAudio on Linux) are selected by build tag; both
+// are cgo-free. newSink and checkBackend are provided per platform.
+type sink interface {
+	pause()
+	resume()
+	stop()
 }
 
 type current struct {
-	player *oto.Player
-	reader *countingReader
-	total  int64
-	docID  int64
-	paused bool
+	snk       sink
+	docID     int64
+	duration  time.Duration
+	start     time.Time     // reference time playback began
+	accPaused time.Duration // total time spent paused
+	pausedAt  time.Time     // when the current pause began
+	paused    bool
 }
 
 // Player plays a single voice message at a time through the system audio device.
+// Playback position is tracked by wall clock, which is accurate enough for the
+// waveform playhead and works identically across backends.
 type Player struct {
-	ctx *oto.Context
 	mu  sync.Mutex
 	cur *current
 }
 
-// NewPlayer initialises the shared audio context. Returns an error when no audio
-// device is available; callers should degrade gracefully.
+// NewPlayer returns a player, failing when no audio backend is available so
+// callers can degrade gracefully (no voice playback).
 func NewPlayer() (*Player, error) {
-	ctx, err := sharedContext()
-	if err != nil {
+	if err := checkBackend(); err != nil {
 		return nil, err
 	}
-	return &Player{ctx: ctx}, nil
+	return &Player{}, nil
 }
 
 // Play decodes and starts playing the given voice document, replacing any
@@ -91,18 +50,20 @@ func (p *Player) Play(docID int64, ogg []byte) error {
 	}
 	p.Stop()
 
-	reader := &countingReader{r: bytes.NewReader(pcm)}
-	pl := p.ctx.NewPlayer(reader)
-	pl.Play()
+	snk, err := newSink(pcm)
+	if err != nil {
+		return err
+	}
+	dur := time.Duration(len(pcm)) * time.Second / time.Duration(bytesPerSecond)
 
 	p.mu.Lock()
-	p.cur = &current{player: pl, reader: reader, total: int64(len(pcm)), docID: docID}
+	p.cur = &current{snk: snk, docID: docID, duration: dur, start: time.Now()}
 	p.mu.Unlock()
 	return nil
 }
 
-// Toggle pauses or resumes the active playback. Returns true if the requested
-// docID is the one playing (so callers can decide between toggle and restart).
+// Toggle pauses or resumes the active playback. Returns true if docID is the one
+// playing (so callers can distinguish toggle from starting a new message).
 func (p *Player) Toggle(docID int64) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -110,11 +71,13 @@ func (p *Player) Toggle(docID int64) bool {
 		return false
 	}
 	if p.cur.paused {
-		p.cur.player.Play()
+		p.cur.accPaused += time.Since(p.cur.pausedAt)
 		p.cur.paused = false
+		p.cur.snk.resume()
 	} else {
-		p.cur.player.Pause()
+		p.cur.pausedAt = time.Now()
 		p.cur.paused = true
+		p.cur.snk.pause()
 	}
 	return true
 }
@@ -126,9 +89,7 @@ func (p *Player) Stop() {
 	p.cur = nil
 	p.mu.Unlock()
 	if cur != nil {
-		// oto v3.4+: Close is unnecessary; pausing and dropping the reference
-		// lets the player be reclaimed.
-		cur.player.Pause()
+		cur.snk.stop()
 	}
 }
 
@@ -142,22 +103,21 @@ func (p *Player) State() (docID int64, progress float64, posSecs int, active boo
 		return 0, 0, 0, false
 	}
 
-	played := cur.reader.count() - int64(cur.player.BufferedSize())
-	if played < 0 {
-		played = 0
+	elapsed := time.Since(cur.start) - cur.accPaused
+	if cur.paused {
+		elapsed = cur.pausedAt.Sub(cur.start) - cur.accPaused
 	}
-	if played > cur.total {
-		played = cur.total
+	if elapsed < 0 {
+		elapsed = 0
 	}
 
-	// Finished: not paused, device drained, and all bytes consumed.
-	if !cur.paused && !cur.player.IsPlaying() && played >= cur.total {
+	if elapsed >= cur.duration {
 		p.Stop()
 		return 0, 0, 0, false
 	}
 
-	if cur.total > 0 {
-		progress = float64(played) / float64(cur.total)
+	if cur.duration > 0 {
+		progress = float64(elapsed) / float64(cur.duration)
 	}
-	return cur.docID, progress, int(played / bytesPerSecond), true
+	return cur.docID, progress, int(elapsed / time.Second), true
 }
