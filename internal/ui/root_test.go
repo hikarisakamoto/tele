@@ -892,11 +892,13 @@ func TestRoot_EventDeleteMessages_Channel_RemovesFromCurrentChat(t *testing.T) {
 	assert.Equal(t, 11, msgs[0].ID)
 }
 
-func TestRoot_EventDeleteMessages_NonChannel_ScansAllChats(t *testing.T) {
+func TestRoot_EventDeleteMessages_NonChannel_TargetsOwningChat(t *testing.T) {
 	m, st := newRootWithTwoChats(t)
 	now := time.Now()
+	// In the shared pts box message IDs are globally unique, so a delete-without-
+	// chatID resolves to exactly one chat via the store index (issue #72).
 	st.SetMessages(1, []store.Message{{ID: 5, ChatID: 1, Text: "a", Date: now}})
-	st.SetMessages(2, []store.Message{{ID: 5, ChatID: 2, Text: "b", Date: now}})
+	st.SetMessages(2, []store.Message{{ID: 6, ChatID: 2, Text: "b", Date: now}})
 
 	evt := store.Event{
 		Kind:   store.EventDeleteMessages,
@@ -906,8 +908,8 @@ func TestRoot_EventDeleteMessages_NonChannel_ScansAllChats(t *testing.T) {
 	newM, _ := m.Update(evt)
 	_ = newM.(ui.RootModel)
 
-	assert.Empty(t, st.Messages(1))
-	assert.Empty(t, st.Messages(2))
+	assert.Empty(t, st.Messages(1))   // owning chat lost the message
+	require.Len(t, st.Messages(2), 1) // unrelated chat untouched
 }
 
 func TestRoot_ContextMenu_PhotoMessage_ShowsOpenInViewer(t *testing.T) {

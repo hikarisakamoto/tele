@@ -159,6 +159,33 @@ func TestSQLite_Chats_ReflectsFreshUnreadAndOnlineWithoutReorder(t *testing.T) {
 	assert.True(t, chats[0].Online)
 }
 
+func TestSQLite_RemoveMessagesByID_TargetsOwningChat(t *testing.T) {
+	s := newTestSQLite(t)
+	s.SetChat(store.Chat{ID: 1, Peer: store.Peer{ID: 1, Type: store.PeerUser}})
+	s.SetChat(store.Chat{ID: 2, Peer: store.Peer{ID: 2, Type: store.PeerUser}})
+	s.SetMessages(1, []store.Message{{ID: 5, ChatID: 1}})
+	s.SetMessages(2, []store.Message{{ID: 6, ChatID: 2}})
+
+	affected := s.RemoveMessagesByID([]int{5})
+
+	assert.Equal(t, []int64{1}, affected)
+	assert.Empty(t, s.Messages(1))   // owning chat lost the message
+	require.Len(t, s.Messages(2), 1) // unrelated chat untouched
+}
+
+func TestSQLite_RemoveMessagesByID_IgnoresChannelMessages(t *testing.T) {
+	s := newTestSQLite(t)
+	// Channel messages live in a per-peer ID space and are deleted with an
+	// explicit ChatID, so they are never indexed for the ChatID==0 path.
+	s.SetChat(store.Chat{ID: 1, Peer: store.Peer{ID: 1, Type: store.PeerChannel}})
+	s.SetMessages(1, []store.Message{{ID: 5, ChatID: 1}})
+
+	affected := s.RemoveMessagesByID([]int{5})
+
+	assert.Empty(t, affected)
+	require.Len(t, s.Messages(1), 1) // untouched — not addressable without ChatID
+}
+
 func TestSQLite_UpdateChatOnline_ReturnsTrueOnFlip(t *testing.T) {
 	s := newTestSQLite(t)
 	s.SetChat(store.Chat{ID: 1, Title: "Alice"})

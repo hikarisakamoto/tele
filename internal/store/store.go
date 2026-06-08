@@ -15,6 +15,7 @@ type Store interface {
 	UpdateMessageMedia(chatID int64, msgID int, photo *PhotoRef, document *DocumentRef)
 	RemoveMessage(chatID int64, msgID int)
 	RemoveMessages(chatID int64, msgIDs []int)
+	RemoveMessagesByID(msgIDs []int) (affected []int64)
 	IncrementChatUnread(chatID int64)
 	UpdateChatReadMaxID(chatID int64, maxID int) bool
 	UpdateChatOutboxReadMaxID(chatID int64, maxID int)

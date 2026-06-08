@@ -69,6 +69,19 @@ type SQLiteStore struct {
 	// re-sort. See issue #71.
 	sortedIDs  []int64
 	orderDirty bool
+
+	// msgChat maps a message ID to its owning chat for the delete-without-chatID
+	// path. Only private chats and basic groups are indexed (the shared pts box,
+	// where message IDs are globally unique); channels/supergroups have their own
+	// ID space and are deleted with an explicit ChatID. See issue #72.
+	msgChat map[int]int64
+}
+
+// sharedPtsBox reports whether a peer's messages live in the account's common
+// pts update box (private chats and basic groups), where message IDs are
+// globally unique. Channels and supergroups have their own per-peer ID space.
+func sharedPtsBox(p Peer) bool {
+	return p.Type == PeerUser || p.Type == PeerGroup
 }
 
 // NewSQLite opens (or creates) the SQLite file at path and returns a ready store.
@@ -101,6 +114,7 @@ func NewSQLite(path string, log *zap.Logger) (*SQLiteStore, error) {
 	s := &SQLiteStore{
 		chats:      make(map[int64]Chat),
 		messages:   make(map[int64][]Message),
+		msgChat:    make(map[int]int64),
 		db:         db,
 		log:        log,
 		orderDirty: true, // build the sorted view lazily on first Chats() call
@@ -258,7 +272,17 @@ func (s *SQLiteStore) SetMessages(chatID int64, msgs []Message) {
 	defer s.mu.Unlock()
 	cp := make([]Message, len(msgs))
 	copy(cp, msgs)
+	// Re-index this chat: drop entries for the replaced messages, then add the
+	// new ones if the chat lives in the shared pts box.
+	for _, m := range s.messages[chatID] {
+		delete(s.msgChat, m.ID)
+	}
 	s.messages[chatID] = cp
+	if chat, ok := s.chats[chatID]; ok && sharedPtsBox(chat.Peer) {
+		for _, m := range cp {
+			s.msgChat[m.ID] = chatID
+		}
+	}
 }
 
 func (s *SQLiteStore) AppendMessage(msg Message) {
@@ -271,6 +295,9 @@ func (s *SQLiteStore) AppendMessage(msg Message) {
 		chat.LastMessage = &m
 		s.chats[msg.ChatID] = chat
 		s.orderDirty = true // newer last-message moves the chat in the list
+		if sharedPtsBox(chat.Peer) {
+			s.msgChat[msg.ID] = msg.ChatID
+		}
 	}
 	s.mu.Unlock()
 	if ok {
@@ -284,6 +311,10 @@ func (s *SQLiteStore) UpdateMessageID(chatID int64, oldID, newID int) {
 	for i := range s.messages[chatID] {
 		if s.messages[chatID][i].ID == oldID {
 			s.messages[chatID][i].ID = newID
+			if cid, ok := s.msgChat[oldID]; ok {
+				delete(s.msgChat, oldID)
+				s.msgChat[newID] = cid
+			}
 			return
 		}
 	}
@@ -340,6 +371,7 @@ func (s *SQLiteStore) RemoveMessage(chatID int64, msgID int) {
 	for i, m := range msgs {
 		if m.ID == msgID {
 			s.messages[chatID] = append(msgs[:i], msgs[i+1:]...)
+			delete(s.msgChat, msgID)
 			return
 		}
 	}
@@ -348,6 +380,12 @@ func (s *SQLiteStore) RemoveMessage(chatID int64, msgID int) {
 func (s *SQLiteStore) RemoveMessages(chatID int64, msgIDs []int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.removeMessagesLocked(chatID, msgIDs)
+}
+
+// removeMessagesLocked drops the given message IDs from one chat and the msgChat
+// index. Caller holds the lock.
+func (s *SQLiteStore) removeMessagesLocked(chatID int64, msgIDs []int) {
 	if len(s.messages[chatID]) == 0 {
 		return
 	}
@@ -358,11 +396,33 @@ func (s *SQLiteStore) RemoveMessages(chatID int64, msgIDs []int) {
 	msgs := s.messages[chatID]
 	kept := msgs[:0]
 	for _, m := range msgs {
-		if _, remove := toRemove[m.ID]; !remove {
-			kept = append(kept, m)
+		if _, remove := toRemove[m.ID]; remove {
+			delete(s.msgChat, m.ID)
+			continue
 		}
+		kept = append(kept, m)
 	}
 	s.messages[chatID] = kept
+}
+
+// RemoveMessagesByID resolves each message ID to its owning chat via the index
+// and removes it there, returning the affected chat IDs. Used for the Telegram
+// non-channel delete that carries message IDs but no peer context (issue #72).
+func (s *SQLiteStore) RemoveMessagesByID(msgIDs []int) []int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	byChat := make(map[int64][]int)
+	for _, id := range msgIDs {
+		if cid, ok := s.msgChat[id]; ok {
+			byChat[cid] = append(byChat[cid], id)
+		}
+	}
+	affected := make([]int64, 0, len(byChat))
+	for cid, ids := range byChat {
+		s.removeMessagesLocked(cid, ids)
+		affected = append(affected, cid)
+	}
+	return affected
 }
 
 func (s *SQLiteStore) IncrementChatUnread(chatID int64) {
@@ -475,6 +535,7 @@ func (s *SQLiteStore) ClearForNewAccount(ownerID int64) {
 	s.mu.Lock()
 	s.chats = make(map[int64]Chat)
 	s.messages = make(map[int64][]Message)
+	s.msgChat = make(map[int]int64)
 	s.sortedIDs = nil
 	s.orderDirty = true
 	s.mu.Unlock()

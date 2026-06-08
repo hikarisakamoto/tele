@@ -62,9 +62,9 @@ func (m RootModel) handleStoreEvent(msg store.Event) (RootModel, tea.Cmd) {
 		if msg.ChatID != 0 {
 			m.st.RemoveMessages(msg.ChatID, msg.MsgIDs)
 		} else {
-			for _, chat := range m.st.Chats() {
-				m.st.RemoveMessages(chat.ID, msg.MsgIDs)
-			}
+			// Non-channel delete: no peer context. Resolve each ID to its chat
+			// via the store index instead of scanning every chat (issue #72).
+			m.st.RemoveMessagesByID(msg.MsgIDs)
 		}
 		if msg.ChatID == 0 || msg.ChatID == m.currentChatID {
 			m.chat.SetMessages(m.st.Messages(m.currentChatID))
