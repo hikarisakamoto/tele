@@ -127,6 +127,16 @@ func (m *ChatModel) SelectedMessageVideo() (store.DocumentRef, bool) {
 func (m *ChatModel) SelectedMessageVoice() (store.DocumentRef, bool) {
 	return m.msgList.SelectedMessageVoice()
 }
+
+// SelectedBubbleRect returns the selected message bubble's rectangle from the
+// last View(), in coordinates local to the message list's output.
+func (m *ChatModel) SelectedBubbleRect() (components.Rect, bool) {
+	return m.msgList.SelectedBubbleRect()
+}
+
+// MessageListHeight is the number of rows the message list occupies, used to
+// bound where a menu anchored to a bubble may be placed.
+func (m *ChatModel) MessageListHeight() int      { return m.msgList.ViewHeight() }
 func (m *ChatModel) ScrollToMessage(id int) bool { return m.msgList.ScrollToMessage(id) }
 func (m *ChatModel) ReplyToMsgID() int           { return m.replyToMsgID }
 func (m *ChatModel) EditMsgID() int              { return m.editMsgID }

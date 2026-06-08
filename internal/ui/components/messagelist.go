@@ -263,6 +263,12 @@ type MessageList struct {
 	playingVoiceID int64
 	voiceProgress  float64
 	voicePosition  int
+
+	// selRect is the rectangle of the selected bubble from the most recent
+	// View(), in coordinates local to View()'s output. selRectOK is false when
+	// no message is selected or no render has happened yet.
+	selRect   Rect
+	selRectOK bool
 }
 
 // SetVoicePlayback marks a voice message (by document id) as currently playing,
@@ -498,14 +504,19 @@ func (ml *MessageList) Count() int {
 	}
 	return n
 }
-func (ml *MessageList) ViewStart() int                { return ml.viewStart }
-func (ml *MessageList) LineOffset() int               { return ml.lineOffset }
-func (ml *MessageList) ViewHeight() int               { return ml.viewHeight }
-func (ml *MessageList) AtTop() bool                   { return ml.viewStart == 0 && ml.lineOffset == 0 }
-func (ml *MessageList) SetIsGroup(v bool)             { ml.isGroup = v }
-func (ml *MessageList) SetOutboxReadMaxID(id int)     { ml.outboxReadMaxID = id }
-func (ml *MessageList) SetInboxReadMaxID(id int)      { ml.inboxReadMaxID = id }
-func (ml *MessageList) SetDarkBackground(isDark bool) { ml.hasDarkBackground = isDark }
+func (ml *MessageList) ViewStart() int  { return ml.viewStart }
+func (ml *MessageList) LineOffset() int { return ml.lineOffset }
+func (ml *MessageList) ViewHeight() int { return ml.viewHeight }
+
+// SelectedBubbleRect returns the rectangle of the selected message bubble from
+// the most recent View() call, local to View()'s output. ok is false when there
+// is no selected message or View() has not run yet.
+func (ml *MessageList) SelectedBubbleRect() (Rect, bool) { return ml.selRect, ml.selRectOK }
+func (ml *MessageList) AtTop() bool                      { return ml.viewStart == 0 && ml.lineOffset == 0 }
+func (ml *MessageList) SetIsGroup(v bool)                { ml.isGroup = v }
+func (ml *MessageList) SetOutboxReadMaxID(id int)        { ml.outboxReadMaxID = id }
+func (ml *MessageList) SetInboxReadMaxID(id int)         { ml.inboxReadMaxID = id }
+func (ml *MessageList) SetDarkBackground(isDark bool)    { ml.hasDarkBackground = isDark }
 
 func (ml *MessageList) senderNameStyle(senderID int64) lipgloss.Style {
 	idx := senderID % 8
@@ -1204,6 +1215,7 @@ func (ml *MessageList) renderItem(i int, selected bool) []string {
 }
 
 func (ml *MessageList) View() string {
+	ml.selRectOK = false
 	if ml.viewWidth <= 0 || ml.viewHeight <= 0 {
 		return ""
 	}
@@ -1215,12 +1227,22 @@ func (ml *MessageList) View() string {
 
 	var allLines []string
 	reachedEnd := true
+	selTopRaw, selHeight, selLeft, selWidth := 0, 0, 0, 0
 	for i := ml.viewStart; i < len(ml.items); i++ {
 		var selected bool
 		if ml.items[i].kind == itemMessage {
 			selected = ml.items[i].msg.ID == selectedID
 		}
 		itemLines := ml.renderItem(i, selected)
+
+		// Measure alignment from the top border line (index 0); it never carries
+		// the selection indicator, and every line of a bubble shares the same
+		// left padding, so this yields the bubble's left/width reliably.
+		var selFirstFull string
+		if selected && len(itemLines) > 0 {
+			selFirstFull = itemLines[0]
+		}
+
 		if i == ml.viewStart && ml.lineOffset > 0 {
 			if ml.lineOffset < len(itemLines) {
 				itemLines = itemLines[ml.lineOffset:]
@@ -1228,12 +1250,26 @@ func (ml *MessageList) View() string {
 				itemLines = nil
 			}
 		}
+
+		if selected {
+			selTopRaw = len(allLines)
+			selHeight = len(itemLines)
+			trimmed := strings.TrimLeft(selFirstFull, " ")
+			selLeft = lipgloss.Width(selFirstFull) - lipgloss.Width(trimmed)
+			selWidth = lipgloss.Width(trimmed)
+			ml.selRectOK = true
+		}
+
 		allLines = append(allLines, itemLines...)
 		if len(allLines) >= ml.viewHeight {
 			reachedEnd = (i == len(ml.items)-1)
 			break
 		}
 	}
+
+	// delta tracks how the pad/trim step below shifts every line's index, so the
+	// captured selTopRaw can be mapped to its final viewport row.
+	delta := 0
 
 	// Pad to viewHeight.
 	// If we rendered all the way to the last message, anchor content to the bottom
@@ -1243,6 +1279,7 @@ func (ml *MessageList) View() string {
 		padding := make([]string, ml.viewHeight-len(allLines))
 		if reachedEnd {
 			allLines = append(padding, allLines...)
+			delta = len(padding)
 		} else {
 			allLines = append(allLines, padding...)
 		}
@@ -1256,10 +1293,16 @@ func (ml *MessageList) View() string {
 		botIdx, botOff := ml.positionAtBottom()
 		atNaturalBottom := ml.viewStart == botIdx && ml.lineOffset >= botOff
 		if reachedEnd && atNaturalBottom {
-			allLines = allLines[len(allLines)-ml.viewHeight:]
+			cut := len(allLines) - ml.viewHeight
+			allLines = allLines[cut:]
+			delta = -cut
 		} else {
 			allLines = allLines[:ml.viewHeight]
 		}
+	}
+
+	if ml.selRectOK {
+		ml.selRect = Rect{Top: selTopRaw + delta, Left: selLeft, Height: selHeight, Width: selWidth}
 	}
 
 	return strings.Join(allLines, "\n")

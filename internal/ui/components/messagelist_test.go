@@ -45,6 +45,38 @@ func TestMessageList_Count(t *testing.T) {
 	assert.Equal(t, 5, ml.Count())
 }
 
+func TestMessageList_SelectedBubbleRect_Incoming(t *testing.T) {
+	ml := components.NewMessageList(3, 40) // one message exactly fills the viewport
+	ml.SetMessages([]store.Message{{ID: 1, ChatID: 1, Text: "hi", Date: time.Now()}})
+	ml.View()
+
+	rect, ok := ml.SelectedBubbleRect()
+	require.True(t, ok)
+	assert.Equal(t, 0, rect.Top)
+	assert.Equal(t, 0, rect.Left) // incoming bubbles hug the left margin
+	assert.Equal(t, 3, rect.Height)
+	assert.Greater(t, rect.Width, 0)
+}
+
+func TestMessageList_SelectedBubbleRect_Outgoing(t *testing.T) {
+	ml := components.NewMessageList(3, 40)
+	ml.SetMessages([]store.Message{{ID: 1, ChatID: 1, Text: "hi", IsOut: true, Date: time.Now()}})
+	ml.View()
+
+	rect, ok := ml.SelectedBubbleRect()
+	require.True(t, ok)
+	assert.Equal(t, 0, rect.Top)
+	assert.Greater(t, rect.Left, 0)           // pushed right
+	assert.Equal(t, 40, rect.Left+rect.Width) // right edge == viewWidth
+}
+
+func TestMessageList_SelectedBubbleRect_NoSelection(t *testing.T) {
+	ml := components.NewMessageList(10, 40) // empty list
+	ml.View()
+	_, ok := ml.SelectedBubbleRect()
+	assert.False(t, ok)
+}
+
 func TestMessageList_ScrollUp_SmallMessage(t *testing.T) {
 	// Small message (h=3, viewHeight=3): ScrollUp enters at lineOffset=h-2=1,
 	// showing content+bottom. Never shows bottom-border-only (lineOffset=h-1).

@@ -971,6 +971,7 @@ func (m RootModel) View() tea.View {
 		}
 
 		var main string
+		var chatPanelLeft, chatBoxW int
 		if m.folderBar != nil && m.folderBar.HasFolders() {
 			const sidebarW = 18
 			_, chatlistW, chatW := layout.SplitThree(m.width, sidebarW, 0.30)
@@ -978,6 +979,8 @@ func (m RootModel) View() tea.View {
 			chatListView := components.RenderBox(m.chatList.View(), chatListTitle, "", "", chatListBorder, chatListFg, chatlistW, innerH)
 			chatView := components.RenderBox(m.chat.View(), chatTitle, chatDot, "", chatBorder, chatFg, chatW, innerH)
 			main = lipgloss.JoinHorizontal(lipgloss.Top, foldersView, chatListView, chatView)
+			chatPanelLeft = sidebarW + chatlistW
+			chatBoxW = chatW
 		} else {
 			leftW, rightW := layout.SplitHorizontal(m.width, m.height, 0.30)
 			chatListWidth := leftW - 2*borderSize + 2
@@ -985,6 +988,8 @@ func (m RootModel) View() tea.View {
 			chatListView := components.RenderBox(m.chatList.View(), chatListTitle, "", "", chatListBorder, chatListFg, chatListWidth, innerH)
 			chatView := components.RenderBox(m.chat.View(), chatTitle, chatDot, "", chatBorder, chatFg, chatWidth, innerH)
 			main = lipgloss.JoinHorizontal(lipgloss.Top, chatListView, chatView)
+			chatPanelLeft = chatListWidth
+			chatBoxW = chatWidth
 		}
 
 		content = main + "\n" + m.statusBar.View()
@@ -992,15 +997,46 @@ func (m RootModel) View() tea.View {
 			content = overlayCenter(content, m.searchModel.View(), m.width, m.height)
 		}
 		if m.contextMenu != nil {
-			content = overlayBottomRight(content, m.contextMenu.View(), m.width, m.height, m.chat.ComposerHeight()+1)
+			content = m.overlayMenuNearBubble(content, m.contextMenu.View(), chatPanelLeft, chatBoxW)
 		}
 		if m.reactionPicker != nil {
-			content = overlayBottomRight(content, m.reactionPicker.View(), m.width, m.height, m.chat.ComposerHeight()+1)
+			content = m.overlayMenuNearBubble(content, m.reactionPicker.View(), chatPanelLeft, chatBoxW)
 		}
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
+}
+
+// overlayMenuNearBubble places a menu next to the selected message bubble: left
+// of outgoing bubbles, right of incoming, top-aligned, clamped to the chat
+// panel. If the bubble geometry is unavailable (no selection, scrolled out,
+// empty chat) it falls back to the bottom-right corner.
+func (m RootModel) overlayMenuNearBubble(content, menu string, chatPanelLeft, chatBoxW int) string {
+	rect, ok := m.chat.SelectedBubbleRect()
+	if !ok {
+		return overlayBottomRight(content, menu, m.width, m.height, m.chat.ComposerHeight()+1)
+	}
+
+	// rect is local to the message list's output. The chat box sits at terminal
+	// row 0; RenderBox adds a 1-cell top/left border; the message list is at the
+	// top of the chat content, so no extra vertical offset is needed.
+	bubble := components.Rect{
+		Top:    1 + rect.Top,
+		Left:   chatPanelLeft + 1 + rect.Left,
+		Height: rect.Height,
+		Width:  rect.Width,
+	}
+	area := components.Rect{
+		Top:    1,
+		Left:   chatPanelLeft + 1,
+		Height: m.chat.MessageListHeight(),
+		Width:  chatBoxW - 2,
+	}
+
+	menuW, menuH := measureBox(menu)
+	top, left := anchorMenu(bubble, area, menuW, menuH, m.chat.SelectedMessageIsOut())
+	return overlayAt(content, menu, m.width, m.height, top, left)
 }
 
 func logoTickCmd() tea.Cmd {

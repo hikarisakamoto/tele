@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/sorokin-vladimir/tele/internal/ui/components"
 )
 
 // stampOverlay writes overlayLines into baseLines starting at (top, left).
@@ -55,6 +56,60 @@ func overlayCenter(base, overlay string, w, h int) string {
 	stampOverlay(baseLines, overlayLines, top, left)
 
 	return strings.Join(baseLines, "\n")
+}
+
+// overlayAt stamps overlay onto base at the given top/left (terminal cells).
+// w/h are the terminal dimensions; base is padded to h rows if shorter.
+func overlayAt(base, overlay string, w, h, top, left int) string {
+	baseLines := strings.Split(base, "\n")
+	overlayLines := strings.Split(overlay, "\n")
+
+	for len(baseLines) < h {
+		baseLines = append(baseLines, "")
+	}
+
+	stampOverlay(baseLines, overlayLines, top, left)
+	return strings.Join(baseLines, "\n")
+}
+
+// measureBox returns the display width (widest line) and height (line count) of
+// a multi-line string.
+func measureBox(s string) (w, h int) {
+	lines := strings.Split(s, "\n")
+	h = len(lines)
+	for _, l := range lines {
+		if ww := lipgloss.Width(l); ww > w {
+			w = ww
+		}
+	}
+	return w, h
+}
+
+// anchorMenu computes the top-left position (terminal cells) for a menu of size
+// menuW x menuH placed next to bubble. onLeft places the menu to the left of the
+// bubble (outgoing messages); otherwise to the right (incoming). The result is
+// clamped into area so the menu stays within the chat panel viewport.
+func anchorMenu(bubble, area components.Rect, menuW, menuH int, onLeft bool) (top, left int) {
+	top = bubble.Top
+	if maxTop := area.Top + area.Height - menuH; top > maxTop {
+		top = maxTop
+	}
+	if top < area.Top {
+		top = area.Top
+	}
+
+	if onLeft {
+		left = bubble.Left - menuW
+	} else {
+		left = bubble.Left + bubble.Width
+	}
+	if maxLeft := area.Left + area.Width - menuW; left > maxLeft {
+		left = maxLeft
+	}
+	if left < area.Left {
+		left = area.Left
+	}
+	return top, left
 }
 
 // overlayBottomRight stamps overlay string in the bottom-right corner of a

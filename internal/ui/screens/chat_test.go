@@ -21,6 +21,18 @@ func TestChat_View_ShowsMessages(t *testing.T) {
 	assert.Contains(t, m.View(), "hello world")
 }
 
+func TestChatModel_SelectedBubbleRect_AfterView(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	m.SetMessages([]store.Message{{ID: 1, ChatID: 1, Text: "hello", Date: time.Now()}})
+	m.View() // populates the rect cache
+
+	rect, ok := m.SelectedBubbleRect()
+	require.True(t, ok)
+	assert.Equal(t, 0, rect.Left) // incoming
+	assert.Greater(t, rect.Width, 0)
+	assert.Greater(t, m.MessageListHeight(), 0)
+}
+
 func TestChat_Insert_FocusesComposer(t *testing.T) {
 	m := screens.NewChatModel(80, 24)
 	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
