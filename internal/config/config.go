@@ -21,6 +21,11 @@ type UIConfig struct {
 type PhotosConfig struct {
 	EagerFullQuality bool   `mapstructure:"eager_full_quality"`
 	Mode             string `mapstructure:"mode"` // auto | kitty | blocks
+	// KittyPlacementCap bounds how many Kitty image placements are kept on the
+	// terminal at once. Transmitting an entire heavy chat exceeds the terminal's
+	// limit and corrupts placements, so only on-screen images (plus a few
+	// recently scrolled-past) stay transmitted. Lower it if images still corrupt.
+	KittyPlacementCap int `mapstructure:"kitty_placement_cap"`
 }
 
 type Config struct {

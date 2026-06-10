@@ -39,11 +39,13 @@ func (m RootModel) updateUIMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 
 	case retransmitTickMsg:
 		// Only the latest debounce tick performs the retransmit; earlier ones
-		// were superseded by a newer width change.
+		// were superseded by a newer width change. Request a reset so reconcile
+		// deletes the stale-width placements and re-transmits at the new width.
 		if msg.gen != m.retransmitGen {
 			return m, nil
 		}
-		return m, m.retransmitChatCmd()
+		m.requestKittyReset()
+		return m, nil
 
 	case FolderFiltersMsg:
 		if m.folderBar != nil {

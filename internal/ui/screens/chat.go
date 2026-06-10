@@ -109,6 +109,7 @@ func (m *ChatModel) SetVoicePlayback(docID int64, progress float64, posSecs int)
 }
 func (m *ChatModel) SetKnownImages(cache map[int64]image.Image) { m.msgList.SetKnownImages(cache) }
 func (m *ChatModel) SetRenderer(r media.Renderer)               { m.msgList.SetRenderer(r) }
+func (m *ChatModel) VisiblePhotoIDs() []int64                   { return m.msgList.VisiblePhotoIDs() }
 func (m *ChatModel) PhotoContentCols() int                      { return m.msgList.PhotoContentCols() }
 func (m *ChatModel) PhotoFootprint(imgW, imgH, cols int) int {
 	return m.msgList.PhotoFootprint(imgW, imgH, cols)

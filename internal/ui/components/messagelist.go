@@ -515,15 +515,37 @@ func (ml *MessageList) ViewStart() int  { return ml.viewStart }
 func (ml *MessageList) LineOffset() int { return ml.lineOffset }
 func (ml *MessageList) ViewHeight() int { return ml.viewHeight }
 
+// VisiblePhotoIDs returns the inline-image cache keys (PreviewImageID) for the
+// messages currently within the viewport, top to bottom. Kitty placements are a
+// bounded terminal resource, so the root transmits/keeps only on-screen images.
+// The visible range mirrors View's accumulation from viewStart.
+func (ml *MessageList) VisiblePhotoIDs() []int64 {
+	var ids []int64
+	lines := 0
+	for i := ml.viewStart; i < len(ml.items) && lines < ml.viewHeight; i++ {
+		h := ml.itemHeight(i)
+		if i == ml.viewStart {
+			h -= ml.lineOffset
+		}
+		lines += h
+		if ml.items[i].kind == itemMessage {
+			if id, ok := PreviewImageID(ml.items[i].msg); ok {
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids
+}
+
 // SelectedBubbleRect returns the rectangle of the selected message bubble from
 // the most recent View() call, local to View()'s output. ok is false when there
 // is no selected message or View() has not run yet.
 func (ml *MessageList) SelectedBubbleRect() (Rect, bool) { return ml.selRect, ml.selRectOK }
 func (ml *MessageList) AtTop() bool                      { return ml.viewStart == 0 && ml.lineOffset == 0 }
-func (ml *MessageList) SetIsGroup(v bool)             { ml.isGroup = v }
-func (ml *MessageList) SetOutboxReadMaxID(id int)     { ml.outboxReadMaxID = id }
-func (ml *MessageList) SetInboxReadMaxID(id int)      { ml.inboxReadMaxID = id }
-func (ml *MessageList) SetDarkBackground(isDark bool) { ml.hasDarkBackground = isDark }
+func (ml *MessageList) SetIsGroup(v bool)                { ml.isGroup = v }
+func (ml *MessageList) SetOutboxReadMaxID(id int)        { ml.outboxReadMaxID = id }
+func (ml *MessageList) SetInboxReadMaxID(id int)         { ml.inboxReadMaxID = id }
+func (ml *MessageList) SetDarkBackground(isDark bool)    { ml.hasDarkBackground = isDark }
 
 func (ml *MessageList) senderNameStyle(senderID int64) lipgloss.Style {
 	idx := senderID % 8

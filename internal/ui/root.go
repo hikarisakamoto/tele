@@ -162,6 +162,15 @@ type RootModel struct {
 	kittyStore        *media.KittyStore
 	lastPhotoCols     int
 	retransmitGen     int
+	// Kitty placements are a bounded terminal resource: transmitting every chat
+	// image at once overruns the terminal and corrupts some. kittyLive tracks the
+	// photo ids currently transmitted (or in flight); kittyLRU orders them by last
+	// visible (oldest first) for eviction; kittyResetPending requests a delete-all
+	// before the next reconcile (chat switch / width change).
+	kittyLive         map[int64]bool
+	kittyLRU          []int64
+	kittyResetPending bool
+	kittyCap          int // max live placements; from config, 0 → default
 	searchModel       *screens.SearchModel
 	onChatOpen        func(int64)
 	nextSentinel      int
@@ -202,6 +211,7 @@ func NewRootModel(client internaltg.Client, st store.Store, historyLimit int, ve
 		imageCache:        make(map[int64]image.Image),
 		fullImageCache:    make(map[int64]image.Image),
 		kittyStore:        media.NewKittyStore(),
+		kittyLive:         make(map[int64]bool),
 		logo:              components.NewLogoLoader(80),
 	}
 }
@@ -238,6 +248,7 @@ func (m RootModel) WithConfig(cfg *config.Config) RootModel {
 	if m.imageMode == media.ModeKitty {
 		m.chat.SetRenderer(media.NewKittyRenderer(m.kittyStore))
 	}
+	m.kittyCap = cfg.Photos.KittyPlacementCap
 	return m
 }
 
@@ -363,6 +374,19 @@ func (m RootModel) Init() tea.Cmd {
 }
 
 func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.updateInner(msg)
+	rm := next.(RootModel)
+	// Reconcile Kitty placements after every event: the visible set may have
+	// changed (scroll, chat switch, new message, image load, resize), and only
+	// on-screen images should hold a placement (issue: burst transmit corrupts
+	// images on heavy chats).
+	if rcmd := (&rm).reconcileKittyCmd(); rcmd != nil {
+		cmd = tea.Batch(cmd, rcmd)
+	}
+	return rm, cmd
+}
+
+func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	// message operations (steps 1+2)
 	case store.Event:
@@ -1041,30 +1065,107 @@ func (m *RootModel) retransmitOnColsChange() tea.Cmd {
 	})
 }
 
-// retransmitChatCmd deletes all terminal images and re-transmits the current
-// chat's downloaded photos at the current width. No-op unless in Kitty mode.
-func (m RootModel) retransmitChatCmd() tea.Cmd {
-	if m.imageMode != media.ModeKitty {
+// requestKittyReset asks the next reconcile to delete every placement and
+// re-transmit the now-visible images. Used on chat switch and photo-width change
+// (the deleted images belong to a different chat or a stale cell width).
+func (m *RootModel) requestKittyReset() {
+	if m.imageMode == media.ModeKitty {
+		m.kittyResetPending = true
+	}
+}
+
+// defaultKittyPlacementCap is the fallback cap when photos.kitty_placement_cap
+// is unset (or non-positive). See PhotosConfig.KittyPlacementCap.
+const defaultKittyPlacementCap = 16
+
+// reconcileKittyCmd is the single place that issues Kitty transmits and deletes.
+// It transmits visible images that are not yet live and evicts the
+// least-recently-visible placements beyond the cap. No-op outside Kitty mode or
+// the main screen.
+func (m *RootModel) reconcileKittyCmd() tea.Cmd {
+	if m.imageMode != media.ModeKitty || m.screen != ScreenMain {
 		return nil
 	}
-	deleteAll := func() tea.Msg { return tea.Raw(media.DeleteAllSeq())() }
-	m.kittyStore.Clear()
-	var transmits []tea.Cmd
-	if m.st != nil && m.currentChatID != 0 {
-		for _, msg := range m.st.Messages(m.currentChatID) {
-			id, ok := components.PreviewImageID(msg)
-			if !ok {
-				continue
-			}
-			if img, ok := m.imageCache[id]; ok {
-				transmits = append(transmits, m.transmitPhotoCmd(id, img))
+
+	var pre tea.Cmd
+	if m.kittyResetPending {
+		m.kittyResetPending = false
+		m.kittyStore.Clear()
+		m.kittyLive = make(map[int64]bool)
+		m.kittyLRU = nil
+		pre = func() tea.Msg { return tea.Raw(media.DeleteAllSeq())() }
+	}
+
+	visible := m.chat.VisiblePhotoIDs()
+	visSet := make(map[int64]bool, len(visible))
+	for _, id := range visible {
+		visSet[id] = true
+	}
+
+	var cmds []tea.Cmd
+	for _, id := range visible {
+		if m.kittyLive[id] {
+			m.kittyLRU = touchID(m.kittyLRU, id)
+			continue
+		}
+		if img, ok := m.imageCache[id]; ok {
+			if c := m.transmitPhotoCmd(id, img); c != nil {
+				cmds = append(cmds, c)
+				m.kittyLive[id] = true
+				m.kittyLRU = append(m.kittyLRU, id)
 			}
 		}
 	}
-	// Sequence, not Batch: the delete-all must reach the terminal before the
-	// re-transmits. tea.Batch runs cmds concurrently with no ordering guarantee,
-	// so a transmit could land first and then be wiped by the delete-all.
-	return tea.Sequence(deleteAll, tea.Batch(transmits...))
+
+	// Evict the least-recently-visible placements beyond the cap; never evict a
+	// currently-visible image.
+	capN := m.kittyCap
+	if capN <= 0 {
+		capN = defaultKittyPlacementCap
+	}
+	for len(m.kittyLive) > capN {
+		evicted := false
+		for i, id := range m.kittyLRU {
+			if visSet[id] {
+				continue
+			}
+			cmds = append(cmds, tea.Raw(media.DeleteSeq(m.kittyStore.IDFor(id))))
+			m.kittyStore.Untransmit(id)
+			delete(m.kittyLive, id)
+			m.kittyLRU = append(m.kittyLRU[:i], m.kittyLRU[i+1:]...)
+			evicted = true
+			break
+		}
+		if !evicted {
+			break
+		}
+	}
+
+	body := tea.Batch(cmds...)
+	switch {
+	case pre != nil && len(cmds) > 0:
+		// The delete-all must reach the terminal before the re-transmits, so
+		// sequence them; the transmits/deletes among themselves target distinct
+		// ids and can run concurrently.
+		return tea.Sequence(pre, body)
+	case pre != nil:
+		return pre
+	case len(cmds) > 0:
+		return body
+	default:
+		return nil
+	}
+}
+
+// touchID moves id to the most-recently-visible end of the LRU order.
+func touchID(s []int64, id int64) []int64 {
+	out := make([]int64, 0, len(s))
+	for _, v := range s {
+		if v != id {
+			out = append(out, v)
+		}
+	}
+	return append(out, id)
 }
 
 func (m RootModel) markReadCmd() tea.Cmd {

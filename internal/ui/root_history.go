@@ -31,7 +31,9 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		m.chatList.SetFocused(false)
 		m.chat.SetFocused(true)
 		m.statusBar.SetActivePane("chat")
-		retransmit := m.retransmitChatCmd()
+		// Drop the previous chat's placements; reconcile (after this update)
+		// transmits the now-visible images.
+		m.requestKittyReset()
 		if m.tgClient != nil {
 			m.chat.SetLoading(true)
 			ctx := m.ctx
@@ -39,15 +41,15 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 			peer := msg.Chat.Peer
 			chatID := msg.Chat.ID
 			limit := m.historyLimit
-			return m, tea.Batch(retransmit, func() tea.Msg {
+			return m, func() tea.Msg {
 				msgs, err := client.GetHistory(ctx, peer, 0, limit)
 				if err != nil {
 					return chatLoadErrMsg{chatID: chatID, text: "load history failed: " + err.Error()}
 				}
 				return ChatHistoryMsg{ChatID: chatID, Messages: msgs}
-			})
+			}
 		}
-		return m, retransmit
+		return m, nil
 
 	case ChatHistoryMsg:
 		if m.st != nil {
@@ -110,7 +112,9 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 	case PhotoReadyMsg:
 		m.imageCache[msg.PhotoID] = msg.Image
 		m.chat.SetImage(msg.PhotoID, msg.Image)
-		return m, m.transmitPhotoCmd(msg.PhotoID, msg.Image)
+		// Transmit is left to reconcile (after this update): the image is only
+		// placed on the terminal if it is currently visible.
+		return m, nil
 
 	case kittyTransmittedMsg:
 		// Placement is now on the terminal; advertise it so the next render emits
