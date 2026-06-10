@@ -173,7 +173,18 @@ ui:
   date_format: "15:04"
   history_limit: 50
   theme: default
+
+photos:
+  mode: auto              # auto | kitty | blocks — inline image renderer
+  eager_full_quality: true
+  kitty_placement_cap: 16 # max inline images kept on the terminal at once
 ```
+
+> **`kitty_placement_cap`** bounds how many Kitty image placements are live on
+> the terminal simultaneously. Only on-screen images (plus a few recently
+> scrolled-past) are transmitted; older ones are evicted. Transmitting an entire
+> heavy chat at once can exceed the terminal's image limit and corrupt
+> placements (shrunken/shifted photos) — lower the cap if you still see that.
 
 ### Customizing keybindings
 
