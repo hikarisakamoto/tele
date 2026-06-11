@@ -18,6 +18,9 @@ GEMINI.md
 .env
 .config/
 *.log
+docs/code-review*.md
+docs/*.sh
+docs/spec.md
 
 # Dev build
 /tele
