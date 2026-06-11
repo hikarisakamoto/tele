@@ -579,19 +579,35 @@ func (ml *MessageList) ScrollUpBy(n int) {
 }
 
 // PrependMessages inserts older messages at the front and shifts viewStart so
-// that the currently-visible messages stay on screen.
+// that the currently-visible messages stay on screen. Messages whose IDs already
+// exist in the list are skipped: rapid scroll-up can fire several identical
+// "load older" requests before the first resolves, so the same chunk may arrive
+// more than once. Without this guard the duplicates would stack into a repeating
+// date-range "ring" that never advances toward older history (issue #120).
 func (ml *MessageList) PrependMessages(older []store.Message) {
 	if len(older) == 0 {
 		return
 	}
 	current := make([]store.Message, 0, len(ml.items))
+	existing := make(map[int]struct{}, len(ml.items))
 	for _, item := range ml.items {
 		if item.kind == itemMessage {
 			current = append(current, item.msg)
+			existing[item.msg.ID] = struct{}{}
 		}
 	}
+	fresh := make([]store.Message, 0, len(older))
+	for _, msg := range older {
+		if _, dup := existing[msg.ID]; dup {
+			continue
+		}
+		fresh = append(fresh, msg)
+	}
+	if len(fresh) == 0 {
+		return
+	}
 	oldLen := len(ml.items)
-	ml.items = ml.buildItems(append(older, current...))
+	ml.items = ml.buildItems(append(fresh, current...))
 	ml.viewStart += len(ml.items) - oldLen
 }
 

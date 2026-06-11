@@ -3,9 +3,32 @@ package ui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/sorokin-vladimir/tele/internal/store"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
 	"github.com/sorokin-vladimir/tele/internal/ui/screens"
 )
+
+// prependOlder merges an older history chunk in front of the existing messages,
+// dropping any chunk entries whose IDs already appear in existing. Duplicate
+// in-flight loads (issue #120) or overlapping server pages would otherwise seed
+// duplicate messages into the store that the message list rebuilds from.
+func prependOlder(older, existing []store.Message) []store.Message {
+	if len(existing) == 0 {
+		return older
+	}
+	seen := make(map[int]struct{}, len(existing))
+	for _, m := range existing {
+		seen[m.ID] = struct{}{}
+	}
+	combined := make([]store.Message, 0, len(older)+len(existing))
+	for _, m := range older {
+		if _, dup := seen[m.ID]; dup {
+			continue
+		}
+		combined = append(combined, m)
+	}
+	return append(combined, existing...)
+}
 
 // updateNetworkMsg handles messages that involve async data loading (history, media, read state).
 func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
@@ -81,10 +104,17 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		if m.st == nil || m.tgClient == nil {
 			return m, nil
 		}
+		// One in-flight "load older" fetch per chat. Without this guard, rapid
+		// scroll-up fires several identical fetches whose duplicate chunks stack
+		// into a repeating date-range ring (issue #120).
+		if m.loadingOlderChat == msg.ChatID {
+			return m, nil
+		}
 		chat, ok := m.st.GetChat(msg.ChatID)
 		if !ok {
 			return m, nil
 		}
+		m.loadingOlderChat = msg.ChatID
 		ctx := m.ctx
 		client := m.tgClient
 		peer := chat.Peer
@@ -93,18 +123,26 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		chatID := msg.ChatID
 		return m, func() tea.Msg {
 			msgs, err := client.GetHistory(ctx, peer, offsetID, limit)
-			if err != nil {
-				return StatusErrMsg{Text: "load history failed: " + err.Error(), Sev: components.SeverityWarning}
-			}
-			return historyChunkMsg{chatID: chatID, messages: msgs}
+			return historyChunkMsg{chatID: chatID, messages: msgs, err: err}
 		}
 
 	case historyChunkMsg:
+		// Clear the in-flight guard for this chat regardless of outcome (error,
+		// empty, or success) so subsequent scroll-up can load again.
+		if msg.chatID == m.loadingOlderChat {
+			m.loadingOlderChat = 0
+		}
+		if msg.err != nil {
+			return m.handleStatusErr(StatusErrMsg{
+				Text: "load history failed: " + msg.err.Error(),
+				Sev:  components.SeverityWarning,
+			})
+		}
 		if m.st != nil && msg.chatID == m.currentChatID && len(msg.messages) > 0 {
 			existing := m.st.Messages(msg.chatID)
-			combined := append(msg.messages, existing...)
+			combined := prependOlder(msg.messages, existing)
 			m.st.SetMessages(msg.chatID, combined)
-			m.chat.PrependMessages(msg.messages) // preserves viewport position
+			m.chat.PrependMessages(msg.messages) // dedups + preserves viewport position
 			return m, m.pendingDownloadCmds(msg.messages)
 		}
 		return m, nil

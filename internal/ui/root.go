@@ -93,6 +93,7 @@ type markReadDoneMsg struct {
 type historyChunkMsg struct {
 	chatID   int64
 	messages []store.Message
+	err      error
 }
 
 type FolderFiltersMsg struct {
@@ -153,15 +154,20 @@ type RootModel struct {
 	tgClient          internaltg.Client
 	st                store.Store
 	currentChatID     int64
-	historyLimit      int
-	verbose           bool
-	cfg               *config.Config
-	imageCache        map[int64]image.Image
-	fullImageCache    map[int64]image.Image
-	imageMode         media.Mode
-	kittyStore        *media.KittyStore
-	lastPhotoCols     int
-	retransmitGen     int
+	// loadingOlderChat is the chat ID with an in-flight "load older history"
+	// fetch, or 0 when none. It gates duplicate LoadMore requests: rapid
+	// scroll-up would otherwise fire several identical fetches whose chunks stack
+	// into a repeating date-range "ring" (issue #120).
+	loadingOlderChat int64
+	historyLimit     int
+	verbose          bool
+	cfg              *config.Config
+	imageCache       map[int64]image.Image
+	fullImageCache   map[int64]image.Image
+	imageMode        media.Mode
+	kittyStore       *media.KittyStore
+	lastPhotoCols    int
+	retransmitGen    int
 	// Kitty placements are a bounded terminal resource: transmitting every chat
 	// image at once overruns the terminal and corrupts some. kittyLive tracks the
 	// photo ids currently transmitted (or in flight); kittyLRU orders them by last

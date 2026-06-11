@@ -169,6 +169,51 @@ func TestMessageList_PrependMessages_PreservesViewStart(t *testing.T) {
 	assert.Equal(t, 3, ml.ViewStart())
 }
 
+// Rapid scroll-up fires several identical "load older" requests before the first
+// resolves, so the same chunk can be prepended more than once (issue #120). The
+// merge must be idempotent: re-prepending already-present IDs is a no-op, never a
+// duplicated date-range "ring".
+func TestMessageList_PrependMessages_SkipsDuplicateIDs(t *testing.T) {
+	now := time.Now()
+	ml := components.NewMessageList(10, 40)
+	ml.SetMessages([]store.Message{
+		{ID: 10, ChatID: 1, Text: "a", Date: now},
+		{ID: 11, ChatID: 1, Text: "b", Date: now},
+	})
+	older := []store.Message{
+		{ID: 8, ChatID: 1, Text: "old1", Date: now},
+		{ID: 9, ChatID: 1, Text: "old2", Date: now},
+	}
+	ml.PrependMessages(older)
+	require.Equal(t, 4, ml.Count())
+
+	// The same chunk arrives again (duplicate in-flight load): no growth, no dupes.
+	ml.PrependMessages(older)
+	assert.Equal(t, 4, ml.Count())
+	assert.Equal(t, 8, ml.OldestID())
+}
+
+// A chunk that partially overlaps the current list (shared boundary message) must
+// only contribute its genuinely-new messages.
+func TestMessageList_PrependMessages_PartialOverlap(t *testing.T) {
+	now := time.Now()
+	ml := components.NewMessageList(10, 40)
+	ml.SetMessages([]store.Message{
+		{ID: 10, ChatID: 1, Text: "a", Date: now},
+		{ID: 11, ChatID: 1, Text: "b", Date: now},
+	})
+	// 7,8,9 are new; 10 repeats the current oldest.
+	older := []store.Message{
+		{ID: 7, ChatID: 1, Text: "old0", Date: now},
+		{ID: 8, ChatID: 1, Text: "old1", Date: now},
+		{ID: 9, ChatID: 1, Text: "old2", Date: now},
+		{ID: 10, ChatID: 1, Text: "a", Date: now},
+	}
+	ml.PrependMessages(older)
+	assert.Equal(t, 5, ml.Count())
+	assert.Equal(t, 7, ml.OldestID())
+}
+
 func TestMessageList_LargeMessage_ShowsBottomPortion(t *testing.T) {
 	// Single message taller than viewport: should show the bottom portion by default.
 	ml := components.NewMessageList(3, 80)

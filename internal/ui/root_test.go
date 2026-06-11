@@ -322,6 +322,34 @@ func TestRoot_LoadMoreMsg_DispatchesGetHistory(t *testing.T) {
 	assert.NotNil(t, result)
 }
 
+func TestRoot_LoadMore_GuardsConcurrentRequests(t *testing.T) {
+	mock := &mockTGClient{history: []store.Message{{ID: 1, ChatID: 1, Date: time.Now()}}}
+	st := store.NewMemory()
+	st.SetChat(store.Chat{ID: 1, Title: "Alice", Peer: store.Peer{ID: 1, Type: store.PeerUser}})
+	m := ui.NewRootModel(mock, st, 50, false).WithScreen(ui.ScreenMain)
+	newM, _ := m.Update(screens.OpenChatMsg{Chat: store.Chat{
+		ID: 1, Title: "Alice", Peer: store.Peer{ID: 1, Type: store.PeerUser},
+	}})
+	m = newM.(ui.RootModel)
+
+	// First load-older dispatches a fetch and arms the in-flight guard.
+	newM, cmd1 := m.Update(screens.LoadMoreMsg{ChatID: 1, OffsetID: 5})
+	m = newM.(ui.RootModel)
+	require.NotNil(t, cmd1)
+
+	// A second load-older while the first is still in flight is ignored — no
+	// duplicate fetch that would later stack a duplicate chunk (issue #120).
+	newM, cmd2 := m.Update(screens.LoadMoreMsg{ChatID: 1, OffsetID: 5})
+	m = newM.(ui.RootModel)
+	assert.Nil(t, cmd2)
+
+	// Once the chunk resolves the guard clears, so further loads are allowed.
+	newM, _ = m.Update(cmd1())
+	m = newM.(ui.RootModel)
+	_, cmd3 := m.Update(screens.LoadMoreMsg{ChatID: 1, OffsetID: 1})
+	assert.NotNil(t, cmd3)
+}
+
 func TestRoot_SlashKey_ActivatesSearch(t *testing.T) {
 	st := store.NewMemory()
 	st.SetChat(store.Chat{ID: 1, Title: "Alice"})
