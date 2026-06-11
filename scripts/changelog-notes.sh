@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Emit GoReleaser release header + name for the given tag.
-# Writes the section body to .release-header.md and appends RELEASE_NAME /
-# RELEASE_HEADER to $GITHUB_ENV. Usage: scripts/changelog-notes.sh <tag>
+# Appends RELEASE_NAME / RELEASE_HEADER to $GITHUB_ENV, which GoReleaser reads
+# via .Env in .goreleaser.yaml. Usage: scripts/changelog-notes.sh <tag>
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -19,8 +19,6 @@ if [ -n "$title" ]; then
 else
   name="$tag"
 fi
-
-printf '%s\n' "$body" > .release-header.md
 
 {
   echo "RELEASE_NAME=$name"
