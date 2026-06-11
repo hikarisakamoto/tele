@@ -2,6 +2,7 @@ package tg
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
@@ -26,8 +27,42 @@ func newOutboxHook(next telegram.UpdateHandler, mustDeliver chan<- store.Event, 
 }
 
 func (h *outboxHook) Handle(ctx context.Context, u tg.UpdatesClass) error {
+	h.logArrival(u)
 	h.extractOutboxReads(ctx, u)
 	return h.next.Handle(ctx, u)
+}
+
+// logArrival records every raw update envelope reaching the client, before the
+// pts-tracking layer. This is the top boundary of the update pipeline: it tells
+// us whether the server still pushes updates after a long idle (#119) or the
+// stream goes silent. Only update *types* are logged here, never peer IDs or
+// message content, so it is safe at plain debug level.
+func (h *outboxHook) logArrival(u tg.UpdatesClass) {
+	ce := h.log.Check(zap.DebugLevel, "update envelope received")
+	if ce == nil {
+		return
+	}
+	var inner []string
+	switch u := u.(type) {
+	case *tg.Updates:
+		inner = updateTypeNames(u.Updates)
+	case *tg.UpdatesCombined:
+		inner = updateTypeNames(u.Updates)
+	case *tg.UpdateShort:
+		inner = []string{fmt.Sprintf("%T", u.Update)}
+	}
+	ce.Write(
+		zap.String("envelope", fmt.Sprintf("%T", u)),
+		zap.Strings("updates", inner),
+	)
+}
+
+func updateTypeNames(upds []tg.UpdateClass) []string {
+	names := make([]string, len(upds))
+	for i, u := range upds {
+		names[i] = fmt.Sprintf("%T", u)
+	}
+	return names
 }
 
 func (h *outboxHook) extractOutboxReads(ctx context.Context, u tg.UpdatesClass) {

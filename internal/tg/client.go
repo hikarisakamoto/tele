@@ -65,10 +65,24 @@ func (c *GotdClient) Connect(ctx context.Context, cfg *config.Config, af *AuthFl
 	})
 
 	// updates.New does not return an error — confirmed via go doc.
-	manager := updates.New(updates.Config{
+	updCfg := updates.Config{
 		Handler: dispatcher,
 		Storage: c.stateStorage,
-	})
+		// Without an explicit logger updates.Manager defaults to zap.NewNop(),
+		// discarding all of its gap/idle-timeout/getDifference diagnostics. Wire
+		// our logger so the manager's recovery behavior after a long idle is
+		// observable (#119): "Idle timeout", "Getting difference", "Pts gap
+		// timeout" and channel-difference results all surface at debug level.
+		Logger: c.log.Named("updates"),
+	}
+	// Persist channel access hashes so channels are re-registered at startup and
+	// UpdateChannelTooLong after a long idle is acted upon instead of dropped
+	// (#119). Falls back to gotd's in-memory hasher if the storage does not
+	// implement it.
+	if h, ok := c.stateStorage.(updates.ChannelAccessHasher); ok {
+		updCfg.AccessHasher = h
+	}
+	manager := updates.New(updCfg)
 
 	// outboxHook intercepts UpdateReadHistoryOutbox / UpdateReadChannelOutbox before
 	// the pts-tracking layer. updates.Manager silently drops these when a pts gap is
@@ -102,6 +116,12 @@ func (c *GotdClient) Connect(ctx context.Context, cfg *config.Config, af *AuthFl
 		UpdateHandler:  hook,
 		SessionStorage: sess,
 		Logger:         c.log,
+		// OnDead marks MTProto connection death (and the reconnect that follows)
+		// so a long-idle update stall (#119) can be correlated with connection
+		// drops in the logs. Logged at warn so it shows without -e.
+		OnDead: func(err error) {
+			c.log.Warn("mtproto connection dead", zap.Error(err))
+		},
 	})
 
 	c.log.Debug("connecting to telegram")

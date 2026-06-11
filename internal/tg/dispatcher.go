@@ -81,6 +81,12 @@ func setupDispatcher(
 		if shouldSuppress(msg.ID) {
 			return nil
 		}
+		// Bottom boundary of the update pipeline: a new message reached our
+		// dispatcher and is about to be delivered. Pairs with the envelope log in
+		// outboxHook to localize a long-idle stall (#119) — if envelopes arrive but
+		// this never fires, the message is stuck inside updates.Manager.
+		log.Debug("dispatcher: new message",
+			zap.Int64("chat_id", msg.ChatID), zap.Int("msg_id", msg.ID), zap.Bool("out", msg.IsOut))
 		select {
 		case mustDeliver <- store.Event{Kind: store.EventNewMessage, Message: msg}:
 		case <-ctx.Done():

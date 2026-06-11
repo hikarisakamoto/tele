@@ -49,6 +49,12 @@ CREATE TABLE IF NOT EXISTS channel_pts (
 	pts        INTEGER NOT NULL DEFAULT 0,
 	PRIMARY KEY (user_id, channel_id)
 );
+CREATE TABLE IF NOT EXISTS channel_access_hash (
+	user_id     INTEGER NOT NULL,
+	channel_id  INTEGER NOT NULL,
+	access_hash INTEGER NOT NULL,
+	PRIMARY KEY (user_id, channel_id)
+);
 CREATE TABLE IF NOT EXISTS folder_filters (
 	key  TEXT PRIMARY KEY DEFAULT 'v1',
 	data TEXT NOT NULL DEFAULT '[]'
@@ -117,12 +123,14 @@ func NewSQLite(path string, log *zap.Logger) (*SQLiteStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	if inMemory {
-		// database/sql keeps a connection pool; each fresh connection to
-		// ":memory:" opens its own empty database. Pin the pool to a single
-		// connection so the in-memory store stays consistent for its lifetime.
-		db.SetMaxOpenConns(1)
-	}
+	// Pin the pool to a single connection. For ":memory:" this keeps the store
+	// on one database (each fresh connection opens its own empty in-memory DB).
+	// For file-backed databases it serializes writes through one connection so
+	// concurrent writers — the updates.Manager's per-channel workers plus the
+	// chat store — never collide on SQLITE_BUSY. WAL alone does not prevent that
+	// without a busy_timeout, and the resulting failed pts/state writes break
+	// channel update recovery after a long idle (#119).
+	db.SetMaxOpenConns(1)
 	if _, err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;"); err != nil {
 		_ = db.Close()
 		return nil, err

@@ -6,6 +6,8 @@ import (
 	"errors"
 
 	"github.com/gotd/td/telegram/updates"
+
+	"github.com/sorokin-vladimir/tele/internal/store"
 )
 
 type sqliteStateStorage struct {
@@ -86,25 +88,87 @@ func (s *sqliteStateStorage) SetChannelPts(ctx context.Context, userID, channelI
 	return err
 }
 
-func (s *sqliteStateStorage) ForEachChannels(ctx context.Context, userID int64, f func(context.Context, int64, int) error) error {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT channel_id, pts FROM channel_pts WHERE user_id = ?`, userID,
-	)
+// GetChannelAccessHash and SetChannelAccessHash implement updates.ChannelAccessHasher.
+// updates.Manager needs a channel's access hash to register a channelState for it
+// at startup (via ForEachChannels) and to call getChannelDifference. Without
+// persistence gotd falls back to an in-memory hasher that is empty on every
+// launch, so previously-seen channels are skipped at startup and stay untracked
+// until a live message arrives — which causes UpdateChannelTooLong after a long
+// idle to be dropped and missed messages to never surface (#119).
+func (s *sqliteStateStorage) GetChannelAccessHash(ctx context.Context, userID, channelID int64) (int64, bool, error) {
+	var hash int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT access_hash FROM channel_access_hash WHERE user_id = ? AND channel_id = ?`, userID, channelID,
+	).Scan(&hash)
+	if err == nil {
+		return hash, true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, false, err
+	}
+	// Fallback to the chat store. channel_access_hash only fills as gotd re-learns
+	// hashes from incoming entities, so a channel with a persisted pts but no
+	// learned hash yet (e.g. a quiet news channel) would otherwise be skipped at
+	// startup and stall after idle (#119). GetDialogs already stored its access
+	// hash on the chat row, so reuse it. GetChannelAccessHash is only called for
+	// channel IDs; the peer_type guard keeps a user/group with a colliding raw ID
+	// from matching.
+	err = s.db.QueryRowContext(ctx,
+		`SELECT peer_access_hash FROM chats WHERE id = ? AND peer_type IN (?, ?) AND peer_access_hash != 0`,
+		channelID, int(store.PeerChannel), int(store.PeerSuperGroup),
+	).Scan(&hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
 	if err != nil {
+		return 0, false, err
+	}
+	return hash, true, nil
+}
+
+func (s *sqliteStateStorage) SetChannelAccessHash(ctx context.Context, userID, channelID, accessHash int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT OR REPLACE INTO channel_access_hash (user_id, channel_id, access_hash) VALUES (?, ?, ?)`,
+		userID, channelID, accessHash,
+	)
+	return err
+}
+
+func (s *sqliteStateStorage) ForEachChannels(ctx context.Context, userID int64, f func(context.Context, int64, int) error) error {
+	// Read every row into memory and close the cursor BEFORE invoking f. gotd's
+	// manager startup calls GetChannelAccessHash (another query on this same
+	// *sql.DB) from inside f; with the pool pinned to a single connection
+	// (SetMaxOpenConns(1)) a held cursor would deadlock the nested query.
+	type channelPts struct {
+		id  int64
+		pts int
+	}
+	var channels []channelPts
+	if err := func() error {
+		rows, err := s.db.QueryContext(ctx,
+			`SELECT channel_id, pts FROM channel_pts WHERE user_id = ?`, userID,
+		)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var c channelPts
+			if err := rows.Scan(&c.id, &c.pts); err != nil {
+				return err
+			}
+			channels = append(channels, c)
+		}
+		return rows.Err()
+	}(); err != nil {
 		return err
 	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var channelID int64
-		var pts int
-		if err := rows.Scan(&channelID, &pts); err != nil {
-			return err
-		}
-		if err := f(ctx, channelID, pts); err != nil {
+	for _, c := range channels {
+		if err := f(ctx, c.id, c.pts); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 func (s *sqliteStateStorage) updateField(ctx context.Context, query string, args ...any) error {
