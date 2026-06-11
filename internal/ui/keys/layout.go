@@ -26,11 +26,15 @@ var layoutToLatin = map[rune]rune{
 	'Б': '<', 'Ю': '>', 'Ё': '~',
 }
 
-// normalizeKey translates a single key token typed on a supported non-Latin
+// NormalizeKey translates a single key token typed on a supported non-Latin
 // layout to the equivalent Latin key on the same physical position. A modifier
 // prefix (e.g. "ctrl+") is preserved; only the final key rune is translated.
 // Named keys ("enter", "esc", "up") and already-Latin keys pass through.
-func normalizeKey(token string) string {
+//
+// Exported so components that consume raw key strings directly (e.g. overlays
+// that switch on tea.KeyPressMsg.String() instead of going through Matcher) can
+// apply the same layout remap before matching.
+func NormalizeKey(token string) string {
 	if token == "" {
 		return token
 	}

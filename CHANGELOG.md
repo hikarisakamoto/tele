@@ -9,12 +9,19 @@ A human title for a release is written as an em-dash suffix on its heading,
 e.g. `## [1.2.0] - 2026-06-11 — Archived folders & image layout fixes`.
 Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
-## [Unreleased]
+## [Unreleased] — Proxy support, chat-list indicators & keyboard-layout fixes
 
 ### Added
 
 - Chat list now shows muted (dim `×`) and manual-unread (`[•]`) indicators so
   these states are visible at a glance (#117)
+- Connect through a system proxy via the `ALL_PROXY` environment variable
+  (SOCKS5/HTTP) (#121)
+
+### Fixed
+
+- Emoji reaction picker now responds to non-Latin keyboard layouts (e.g. the
+  Russian `hjkl` navigation keys), matching the remap used everywhere else
 
 ## [1.2.0] - 2026-06-11 — Reliable updates and history scrolling
 

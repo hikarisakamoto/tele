@@ -63,6 +63,24 @@ func TestReactionPicker_LeftAtEdgeStays(t *testing.T) {
 	assert.Equal(t, "🤝", msg.Emoji) // stays at top-left
 }
 
+// pressRune builds a printable key press for a single rune, as a non-Latin
+// keyboard layout would report it (e.g. Russian 'о' on the physical J key).
+func pressRune(r rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: r, Text: string(r)}
+}
+
+func TestReactionPicker_RussianLayoutDownMoves(t *testing.T) {
+	// 'о' is the Russian character on the physical J key (move down).
+	p := components.NewReactionPicker("")
+	p, _ = p.Update(pressRune('о'))
+	require.NotNil(t, p)
+	newP, cmd := p.Update(pressEnter())
+	assert.Nil(t, newP)
+	require.NotNil(t, cmd)
+	msg := cmd().(components.ReactConfirmedMsg)
+	assert.Equal(t, "💯", msg.Emoji) // one step down from top-left
+}
+
 func TestReactionPicker_ViewContainsEmoji(t *testing.T) {
 	p := components.NewReactionPicker("")
 	v := p.View()

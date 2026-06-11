@@ -6,6 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	lipcompat "charm.land/lipgloss/v2/compat"
+
+	"github.com/sorokin-vladimir/tele/internal/ui/keys"
 )
 
 // ReactConfirmedMsg is emitted when the user selects an emoji.
@@ -71,7 +73,9 @@ func (p *ReactionPicker) Update(msg tea.Msg) (*ReactionPicker, tea.Cmd) {
 	if !ok {
 		return p, nil
 	}
-	switch kp.String() {
+	// Translate non-Latin layout keys to their Latin equivalent so the hjkl
+	// bindings fire on the same physical key in any supported layout.
+	switch keys.NormalizeKey(kp.String()) {
 	case "j", "down":
 		if p.row < pickerRows-1 {
 			p.row++

@@ -9,7 +9,7 @@ func (km KeyMap) Resolve(ctx Context, key string) Action {
 	if a := km.resolveExact(ctx, key); a != ActionNone {
 		return a
 	}
-	if nk := normalizeKey(key); nk != key {
+	if nk := NormalizeKey(key); nk != key {
 		return km.resolveExact(ctx, nk)
 	}
 	return ActionNone

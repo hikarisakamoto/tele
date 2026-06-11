@@ -25,7 +25,7 @@ func TestNormalizeKey_RussianToLatinSamePhysicalKey(t *testing.T) {
 		"/":     "/",
 	}
 	for in, want := range cases {
-		assert.Equal(t, want, normalizeKey(in), "normalizeKey(%q)", in)
+		assert.Equal(t, want, NormalizeKey(in), "NormalizeKey(%q)", in)
 	}
 }
 

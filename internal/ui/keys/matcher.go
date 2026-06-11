@@ -55,7 +55,7 @@ func (m *Matcher) Reset() { m.pending = "" }
 func (m *Matcher) Resolve(ctx Context, key string) (Action, MatchResult) {
 	// Translate a non-Latin layout key to its Latin equivalent so bindings
 	// (stored as Latin) fire on the same physical key in any layout.
-	key = normalizeKey(key)
+	key = NormalizeKey(key)
 	seq := key
 	if m.pending != "" {
 		seq = m.pending + " " + key
