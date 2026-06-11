@@ -55,3 +55,27 @@ brews:
       bin.install "tele"
     test: |
       system "#{bin}/tele", "--version"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat'
+      order: 0
+    - title: Bug fixes
+      regexp: '^fix'
+      order: 1
+    - title: Other
+      order: 999
+  filters:
+    exclude:
+      - '^chore'
+      - '^docs'
+      - '^test'
+      - '^Merge '
+
+release:
+  name_template: "{{ .Env.RELEASE_NAME }}"
+  header: |
+    {{ .Env.RELEASE_HEADER }}

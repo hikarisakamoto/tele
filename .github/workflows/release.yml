@@ -73,6 +73,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Prepare release notes
+        run: bash scripts/changelog-notes.sh "${GITHUB_REF_NAME}"
+
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"

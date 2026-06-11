@@ -40,3 +40,7 @@ run = "go mod tidy"
 [tasks.hooks]
 description = "Install git hooks via lefthook"
 run = "lefthook install"
+
+[tasks.release]
+description = "Cut a release: promote CHANGELOG, commit, tag (no push). Usage: mise run release <version|patch|minor|major>"
+run = "bash scripts/release.sh"
