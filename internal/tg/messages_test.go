@@ -592,3 +592,35 @@ func TestConvertMessage_DocumentThumbSize(t *testing.T) {
 	require.NotNil(t, msg.Document)
 	assert.Equal(t, "m", msg.Document.ThumbSize)
 }
+
+func TestConvertMessage_HiddenEdit_NoEditDate(t *testing.T) {
+	// Telegram bumps edit_date when a reaction is added but sets edit_hide so
+	// clients don't show "edited". Our converter must honor edit_hide (#118).
+	raw := &tg.Message{
+		ID:       7,
+		PeerID:   &tg.PeerUser{UserID: 10},
+		Message:  "hi",
+		Date:     int(time.Now().Unix()),
+		EditDate: int(time.Now().Unix()),
+		EditHide: true,
+	}
+	raw.FromID = &tg.PeerUser{UserID: 10}
+	msg, ok := convertMessage(raw, 10)
+	require.True(t, ok)
+	assert.Nil(t, msg.EditDate, "edit_hide must suppress the edited marker")
+}
+
+func TestConvertMessage_RealEdit_SetsEditDate(t *testing.T) {
+	raw := &tg.Message{
+		ID:       7,
+		PeerID:   &tg.PeerUser{UserID: 10},
+		Message:  "hi",
+		Date:     int(time.Now().Unix()),
+		EditDate: int(time.Now().Unix()),
+		EditHide: false,
+	}
+	raw.FromID = &tg.PeerUser{UserID: 10}
+	msg, ok := convertMessage(raw, 10)
+	require.True(t, ok)
+	require.NotNil(t, msg.EditDate, "a real edit keeps the edited marker")
+}

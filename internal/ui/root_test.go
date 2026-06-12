@@ -1278,3 +1278,24 @@ func TestRoot_ToggleArchive_OptimisticUpdate(t *testing.T) {
 	c, _ := st.GetChat(1)
 	assert.True(t, c.IsArchived)
 }
+
+func TestRoot_EventEditMessage_HiddenEdit_DoesNotMarkEdited(t *testing.T) {
+	st := store.NewMemory()
+	st.SetChat(store.Chat{ID: 1, Title: "Alice", Peer: store.Peer{ID: 1, Type: store.PeerUser}})
+	st.AppendMessage(store.Message{ID: 10, ChatID: 1, Text: "original"})
+	m := ui.NewRootModel(nil, st, 50, false)
+	m = m.WithScreen(ui.ScreenMain)
+
+	// A hidden edit (edit_hide) reaches the root as EventEditMessage with a nil
+	// EditDate — e.g. a reaction bump. It must not flip the message to "edited"
+	// (issue #118).
+	newM, _ := m.Update(store.Event{
+		Kind:    store.EventEditMessage,
+		Message: store.Message{ID: 10, ChatID: 1, Text: "original", EditDate: nil},
+	})
+	_ = newM.(ui.RootModel)
+
+	msgs := st.Messages(1)
+	require.Len(t, msgs, 1)
+	assert.Nil(t, msgs[0].EditDate, "hidden edit must not set the edited marker")
+}

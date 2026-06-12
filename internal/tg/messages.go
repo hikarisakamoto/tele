@@ -513,7 +513,10 @@ func convertMessage(raw tg.MessageClass, chatID int64) (store.Message, bool) {
 	if hdr, ok := msg.ReplyTo.(*tg.MessageReplyHeader); ok {
 		out.ReplyToMsgID = hdr.ReplyToMsgID
 	}
-	if msg.EditDate != 0 {
+	// EditHide is set when edit_date changes for a non-content reason (e.g. a
+	// reaction bump): Telegram tells clients to hide the "edited" label. Honor
+	// it so reactions don't mark the message as edited (issue #118).
+	if msg.EditDate != 0 && !msg.EditHide {
 		t := time.Unix(int64(msg.EditDate), 0)
 		out.EditDate = &t
 	}

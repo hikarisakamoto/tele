@@ -57,10 +57,15 @@ func (m RootModel) handleStoreEvent(msg store.Event) (RootModel, tea.Cmd) {
 		// A message was edited on another client. Update the stored text/edit
 		// date and re-render the open chat in place (no history reload). Keep
 		// scroll position, matching the reactions-update path.
-		editDate := time.Now()
-		if msg.Message.EditDate != nil {
-			editDate = *msg.Message.EditDate
+		//
+		// A nil EditDate means the converter dropped it as a hidden edit
+		// (Telegram edit_hide), e.g. a reaction bump: not a real content edit.
+		// Ignore it so the message is not flipped to "edited"; the reaction
+		// itself arrives via EventReactionsUpdate (issue #118).
+		if msg.Message.EditDate == nil {
+			return m, nil
 		}
+		editDate := *msg.Message.EditDate
 		m.st.UpdateMessageText(msg.Message.ChatID, msg.Message.ID, msg.Message.Text, editDate)
 		if msg.Message.ChatID == m.currentChatID {
 			m.chat.SetMessagesKeepScroll(m.st.Messages(m.currentChatID))
