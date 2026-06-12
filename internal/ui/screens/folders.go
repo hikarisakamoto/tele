@@ -109,8 +109,8 @@ func (m *FoldersModel) Cursor() int                        { return m.cursor }
 func (m *FoldersModel) ScrollInfo() components.ScrollInfo {
 	return components.ScrollInfo{Total: len(m.folders), Visible: m.height, Offset: 0}
 }
-func (m *FoldersModel) Folders() []store.FolderFilter      { return m.folders }
-func (m *FoldersModel) Context() keys.Context              { return keys.ContextFolders }
+func (m *FoldersModel) Folders() []store.FolderFilter { return m.folders }
+func (m *FoldersModel) Context() keys.Context         { return keys.ContextFolders }
 
 // SelectedFilter returns the currently active filter. Nil means All Chats.
 func (m *FoldersModel) SelectedFilter() *store.FolderFilter {
