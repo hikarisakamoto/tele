@@ -11,6 +11,17 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- Scroll position indicators on the folders, chat list, and chat panes: a thumb
+  on the right border shows how far through the content you are, appearing only
+  when a pane has more than fits on screen (#14)
+
+### Fixed
+
+- Incoming reactions on your own messages no longer flip them to "edited";
+  Telegram's hidden-edit flag is now respected (#118)
+
 ## [1.3.0] - 2026-06-11 — Mute-aware notifications, incoming edits & proxy support
 
 ### Added
