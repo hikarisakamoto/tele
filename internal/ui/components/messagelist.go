@@ -772,6 +772,28 @@ func (ml *MessageList) positionAtBottom() (int, int) {
 	return 0, 0
 }
 
+// wrappedLineCount returns how many rendered rows the message body occupies at
+// the given content width. It uses the same lipgloss word-wrap that renderMessage
+// applies, so the height estimate and the actual render stay in lock-step. A naive
+// ceil(runes/width) under-counts, because word-wrap cannot split words and leaves
+// ragged line ends, silently clipping the tail message (issue #115).
+func wrappedLineCount(text string, entities []store.MessageEntity, contentW int) int {
+	if contentW < 1 {
+		contentW = 1
+	}
+	rendered := RenderEntities(text, entities)
+	wrapStyle := lipgloss.NewStyle().Width(contentW)
+	n := 0
+	for _, part := range strings.Split(rendered, "\n") {
+		if part == "" {
+			n++ // blank line preserved as one row
+			continue
+		}
+		n += len(strings.Split(wrapStyle.Render(part), "\n"))
+	}
+	return n
+}
+
 // msgHeight estimates the rendered line count for a single message:
 // 2 border lines (top with header title + bottom) + wrapped body lines.
 func (ml *MessageList) msgHeight(msg store.Message) int {
@@ -837,14 +859,7 @@ func (ml *MessageList) msgHeight(msg store.Message) int {
 	}
 
 	if msg.Text != "" {
-		for _, part := range strings.Split(msg.Text, "\n") {
-			r := []rune(part)
-			if len(r) == 0 {
-				h++
-			} else {
-				h += (len(r) + maxContentW - 1) / maxContentW
-			}
-		}
+		h += wrappedLineCount(msg.Text, msg.Entities, maxContentW)
 	}
 
 	if h == 0 {

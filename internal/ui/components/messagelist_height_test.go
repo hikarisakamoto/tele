@@ -57,8 +57,25 @@ func TestMsgHeightMatchesRenderMessage(t *testing.T) {
 			target: 0,
 		},
 		{
-			name: "with reactions",
-			msgs: []store.Message{{ID: 1, Text: "ok", Date: now, Reactions: []store.Reaction{{Emoji: "👍", Count: 2}}}},
+			name:   "with reactions",
+			msgs:   []store.Message{{ID: 1, Text: "ok", Date: now, Reactions: []store.Reaction{{Emoji: "👍", Count: 2}}}},
+			target: 0,
+		},
+		// Word-wrap cases: ceil(runes/width) under-counts because lipgloss cannot
+		// split words and leaves ragged line ends (issue #115).
+		{
+			name:   "wrap natural sentence",
+			msgs:   []store.Message{{ID: 1, Text: "один два три четыре пять шесть семь восемь девять десять одиннадцать двенадцать", Date: now}},
+			target: 0,
+		},
+		{
+			name:   "wrap ragged words",
+			msgs:   []store.Message{{ID: 1, Text: "abcdefghijklmn opqrstuvwxyzab cdefghijklmnop qrstuvwxyzabcd", Date: now}},
+			target: 0,
+		},
+		{
+			name:   "wrap long unbreakable words",
+			msgs:   []store.Message{{ID: 1, Text: "supercalifragilisticexpialidocious antidisestablishmentarianism pneumonoultramicroscopic", Date: now}},
 			target: 0,
 		},
 	}
