@@ -11,6 +11,16 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Fixed
+
+- A newly arrived message could be clipped or left unreachable below the bottom
+  of an open chat (only its top border visible, "can't scroll down"), surviving
+  refresh and restart. The viewport height estimate under-counted forwarded
+  messages, so it never scrolled fully to the new tail (#115)
+- Multi-line and wrapping messages were under-measured (the estimate assumed
+  perfect character packing while rendering uses word-wrap), which could also
+  clip the newest message at the bottom of a chat (#115)
+
 ## [1.3.1] - 2026-06-12
 
 ### Added
