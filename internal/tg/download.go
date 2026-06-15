@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"io"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 
 	_ "golang.org/x/image/webp" // register WEBP decoder for image.Decode (static stickers)
 
