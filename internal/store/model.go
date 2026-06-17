@@ -162,6 +162,19 @@ type Message struct {
 	EditDate     *time.Time   // nil if not edited
 	Reactions    []Reaction
 	Forward      *ForwardInfo // nil if not forwarded
+	// LocalMedia describes media being uploaded for an optimistic outgoing bubble,
+	// rendered from a local file before the server confirms. nil for normal messages.
+	LocalMedia *LocalMedia
+}
+
+// LocalMedia is the local-file description of media on an optimistic outgoing
+// message, so the bubble can render (via the inbound media pipeline, keyed on Kind)
+// before messages.sendMedia is confirmed.
+type LocalMedia struct {
+	Path     string
+	Kind     MediaKind
+	FileName string
+	Size     int64
 }
 
 // ForwardInfo describes the origin of a forwarded message.

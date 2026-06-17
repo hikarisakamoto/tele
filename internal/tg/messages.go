@@ -108,10 +108,65 @@ func (c *GotdClient) SendMessage(ctx context.Context, peer store.Peer, text stri
 	return realID, err
 }
 
+// SendMediaParams carries everything SendMedia needs. Media is a ready-made
+// InputMediaClass; SendMedia is type-agnostic and does not inspect it.
+type SendMediaParams struct {
+	Peer         store.Peer
+	Media        tg.InputMediaClass
+	Caption      string
+	ReplyToMsgID int
+}
+
+func (c *GotdClient) SendMedia(ctx context.Context, p SendMediaParams) (int, error) {
+	api, err := c.acquireAPI()
+	if err != nil {
+		return 0, err
+	}
+
+	c.traceLog.Debug("SendMedia", zap.Int64("peer_id", p.Peer.ID), zap.Int("caption_len", len(p.Caption)))
+	inputPeer := peerToInput(p.Peer)
+	var realID int
+	err = WithRetry(ctx, func() error {
+		var buf [8]byte
+		if _, err := rand.Read(buf[:]); err != nil {
+			return err
+		}
+		randomID := int64(binary.LittleEndian.Uint64(buf[:]))
+
+		updates, err := api.MessagesSendMedia(ctx, buildSendMediaRequest(inputPeer, p.Media, p.Caption, randomID, p.ReplyToMsgID))
+		if err != nil {
+			c.log.Error("MessagesSendMedia failed", zap.Error(err))
+			return err
+		}
+		realID = extractSentMessageID(updates, randomID)
+		if realID != 0 {
+			c.suppressMu.Lock()
+			c.suppressIDs[realID] = struct{}{}
+			c.suppressMu.Unlock()
+		}
+		c.traceLog.Debug("SendMedia ok", zap.Int64("peer_id", p.Peer.ID), zap.Int("real_id", realID))
+		return nil
+	})
+	return realID, err
+}
+
 func buildSendRequest(inputPeer tg.InputPeerClass, text string, randomID int64, replyToMsgID int) *tg.MessagesSendMessageRequest {
 	req := &tg.MessagesSendMessageRequest{
 		Peer:     inputPeer,
 		Message:  text,
+		RandomID: randomID,
+	}
+	if replyToMsgID != 0 {
+		req.ReplyTo = &tg.InputReplyToMessage{ReplyToMsgID: replyToMsgID}
+	}
+	return req
+}
+
+func buildSendMediaRequest(inputPeer tg.InputPeerClass, media tg.InputMediaClass, caption string, randomID int64, replyToMsgID int) *tg.MessagesSendMediaRequest {
+	req := &tg.MessagesSendMediaRequest{
+		Peer:     inputPeer,
+		Media:    media,
+		Message:  caption,
 		RandomID: randomID,
 	}
 	if replyToMsgID != 0 {

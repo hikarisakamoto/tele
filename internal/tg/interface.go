@@ -18,6 +18,10 @@ type Client interface {
 	// references (Telegram FileReferences expire).
 	RefreshMessage(ctx context.Context, peer store.Peer, msgID int) (store.Message, error)
 	SendMessage(ctx context.Context, peer store.Peer, text string, replyToMsgID int) (int, error)
+	// SendMedia sends a ready-made InputMediaClass via messages.sendMedia,
+	// returning the confirmed message ID. It is type-agnostic: the caller builds
+	// the InputMedia (photo/document/...); SendMedia knows nothing about MIME.
+	SendMedia(ctx context.Context, p SendMediaParams) (int, error)
 	MarkRead(ctx context.Context, peer store.Peer, maxID int) error
 	// MarkDialogUnread sets or clears the manual unread mark on a dialog.
 	MarkDialogUnread(ctx context.Context, peer store.Peer, unread bool) error

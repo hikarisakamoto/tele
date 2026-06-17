@@ -11,6 +11,16 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- Foundational outbound-media plumbing: a chunked file-upload pipeline (with a
+  progress callback) and a generic, type-agnostic `SendMedia` that posts through
+  the same optimistic + update-suppression path as text messages. Also a shared
+  `internal/media` MIME helper (detect a file's type, map it to a default media
+  kind) and an optimistic local-media field on stored messages. No user-facing
+  send UI yet — this is the shared layer the photo/video/voice send features
+  build on (#128)
+
 ### Changed
 
 - Desktop notifications now post through a terminal-native OSC escape when the

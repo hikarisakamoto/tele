@@ -61,6 +61,9 @@ func (m *mockTGClient) SendMessage(ctx context.Context, _ store.Peer, _ string, 
 	}
 	return 42, nil
 }
+func (m *mockTGClient) SendMedia(_ context.Context, _ internaltg.SendMediaParams) (int, error) {
+	return 0, nil
+}
 func (m *mockTGClient) MarkRead(_ context.Context, _ store.Peer, _ int) error { return nil }
 func (m *mockTGClient) MarkDialogUnread(_ context.Context, _ store.Peer, _ bool) error {
 	return nil
