@@ -40,11 +40,8 @@ type gifTickMsg struct {
 // videoFileReadyMsg carries the temp-file path of a downloaded video, ready for
 // the in-app player to decode and display.
 type videoFileReadyMsg struct {
-	docID   int64
-	msgID   int
-	path    string
-	durSecs int
-	sender  string
+	docID int64
+	path  string
 }
 
 // videoProbedMsg carries a video's real pixel dimensions (from ffprobe) so the

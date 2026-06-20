@@ -14,6 +14,7 @@ import (
 	"github.com/sorokin-vladimir/tele/internal/store"
 	internaltg "github.com/sorokin-vladimir/tele/internal/tg"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
+	"github.com/sorokin-vladimir/tele/internal/ui/keys"
 	"github.com/sorokin-vladimir/tele/internal/ui/media"
 )
 
@@ -58,19 +59,44 @@ func fmtClock(secs int) string {
 	return fmt.Sprintf("%d:%02d", secs/60, secs%60)
 }
 
-// videoModalBox sizes the modal image to fit ~80% of the terminal while keeping
-// the source aspect ratio, reusing the shared PhotoBox sizing.
+// videoModalBox sizes the modal image to fit ~90% of the terminal while keeping
+// the source aspect ratio. Unlike PhotoBox (tuned for inline chat photos with a
+// 2/3-pane and long-side cap) it fills the modal area, and rows come from
+// PhotoRows so the transmitted frame exactly fills the cols×rows placement (no
+// empty band, correct portrait/landscape aspect).
 func (m RootModel) videoModalBox(imgW, imgH int) (int, int) {
-	cw, ch := media.CellPx()
-	maxCols := m.width * 4 / 5
-	maxRows := m.height * 4 / 5
-	return media.PhotoBox(imgW, imgH, maxCols, maxRows, 1600, cw, ch, media.CellAspect())
+	if imgW <= 0 || imgH <= 0 {
+		return 0, 0
+	}
+	aspect := media.CellAspect()
+	maxCols := m.width*9/10 - 2 // leave room for the side borders
+	if maxCols < 1 {
+		maxCols = 1
+	}
+	maxRows := m.height*9/10 - 3 // top border + progress row + bottom border
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	cols := maxCols
+	rows := media.PhotoRows(imgW, imgH, cols, aspect)
+	if rows > maxRows {
+		// rows is linear in cols; shrink cols to land within the height budget.
+		cols = cols * maxRows / rows
+		if cols < 1 {
+			cols = 1
+		}
+		rows = media.PhotoRows(imgW, imgH, cols, aspect)
+		if rows > maxRows {
+			rows = maxRows
+		}
+	}
+	return cols, rows
 }
 
 // downloadVideoFileCmd streams a video's bytes to a temp file for the in-app
 // player. Mirrors downloadGifFileCmd but carries the duration for the progress
 // bar and yields a videoFileReadyMsg.
-func downloadVideoFileCmd(ctx context.Context, client internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, tmpDir string, durSecs int, sender string) tea.Cmd {
+func downloadVideoFileCmd(ctx context.Context, client internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, tmpDir string) tea.Cmd {
 	return func() tea.Msg {
 		f, err := createTempMediaFile(tmpDir, ".mp4")
 		if err != nil {
@@ -93,7 +119,7 @@ func downloadVideoFileCmd(ctx context.Context, client internaltg.Client, peer st
 		if derr != nil {
 			return nil
 		}
-		return videoFileReadyMsg{docID: ref.ID, msgID: msgID, path: name, durSecs: durSecs, sender: sender}
+		return videoFileReadyMsg{docID: ref.ID, path: name}
 	}
 }
 
@@ -148,15 +174,21 @@ func (m RootModel) selectedVideoInfo() (int, string) {
 	return 0, ""
 }
 
-// openVideoPlayerCmd downloads the selected video and kicks off first-frame decode.
-func (m RootModel) openVideoPlayerCmd(ref store.DocumentRef, msgID, durSecs int, sender string) tea.Cmd {
-	return downloadVideoFileCmd(m.ctx, m.tgClient, m.currentPeer(), msgID, ref, m.tmpDir, durSecs, sender)
+// openVideoModal opens the modal shell immediately (so the loading spinner shows
+// while the file downloads) and kicks off the download.
+func (m RootModel) openVideoModal(ref store.DocumentRef, msgID, durSecs int, sender string) (RootModel, tea.Cmd) {
+	cols, rows := m.videoModalBox(16, 9) // provisional box; resized once probed
+	m.videoPlayer = &videoPlayer{docID: ref.ID, durSecs: durSecs, title: sender, cols: cols, rows: rows}
+	return m, downloadVideoFileCmd(m.ctx, m.tgClient, m.currentPeer(), msgID, ref, m.tmpDir)
 }
 
 func (m RootModel) handleVideoFileReady(msg videoFileReadyMsg) (RootModel, tea.Cmd) {
-	// Open the modal shell now (spinner shows until the first frame), then probe
-	// real dimensions so the box (and therefore the decode size) keeps the aspect.
-	m.videoPlayer = &videoPlayer{docID: msg.docID, path: msg.path, durSecs: msg.durSecs, title: msg.sender}
+	if m.videoPlayer == nil || m.videoPlayer.docID != msg.docID {
+		return m, nil
+	}
+	// File downloaded; probe real dimensions so the box keeps the aspect, then
+	// stream (handleVideoProbed).
+	m.videoPlayer.path = msg.path
 	return m, probeVideoCmd(m.ctx, msg.docID, msg.path)
 }
 
@@ -247,8 +279,9 @@ func (m RootModel) closeVideoPlayer() RootModel {
 // handleVideoPlayerKey handles keys while the modal is open: q/esc close, o opens
 // the external player, space toggles play/pause.
 func (m RootModel) handleVideoPlayerKey(keyStr string) (RootModel, tea.Cmd) {
-	switch keyStr {
-	case "q", "esc":
+	// Normalize so the keys work regardless of keyboard layout (e.g. Russian).
+	switch keys.NormalizeKey(keyStr) {
+	case "esc":
 		return m.closeVideoPlayer(), nil
 	case "o":
 		if m.videoPlayer != nil && m.videoPlayer.path != "" {
@@ -272,7 +305,7 @@ func videoFooterHints(playing bool) string {
 	if playing {
 		space = "pause"
 	}
-	return components.HintBar([][2]string{{"space", space}, {"o", "external"}, {"q", "close"}})
+	return components.HintBar([][2]string{{"space", space}, {"o", "external"}, {"esc", "close"}})
 }
 
 // videoProgressRow renders a full-width filled bar for posFrames/totalFrames.
@@ -356,11 +389,15 @@ func (m RootModel) videoPlayerView(base string) string {
 			content[i] = blank
 		}
 		if vp.rows > 0 {
+			// Center "loading…" both vertically (middle row) and horizontally.
 			line := videoSpinnerGlyph(vp.spinnerIdx) + " loading…"
-			if pad := vp.cols - lipgloss.Width(line); pad > 0 {
-				line += strings.Repeat(" ", pad)
+			if lp := (vp.cols - lipgloss.Width(line)) / 2; lp > 0 {
+				line = strings.Repeat(" ", lp) + line
 			}
-			content[0] = line
+			if rp := vp.cols - lipgloss.Width(line); rp > 0 {
+				line += strings.Repeat(" ", rp)
+			}
+			content[vp.rows/2] = line
 		}
 	}
 	// Progress bar row under the image (inside the box).

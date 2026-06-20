@@ -13,6 +13,13 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ### Added
 
+- In-app video playback: pressing the open key (`o`) on a video now plays it
+  silently in a bordered modal overlaid on the chat — autoplay + loop, `space`
+  to pause/resume, `esc` to close, a progress bar with `m:ss / m:ss`, a loading
+  spinner, and the sender on the top border. Kitty graphics mode only and
+  requires `ffmpeg`; otherwise the key opens the external player as before. The
+  context menu offers both "Play in app" and "Open externally" (`o` / `O`),
+  consistent with the keys (#136)
 - Inline GIF playback: GIFs now render a static thumbnail with a `GIF` badge
   (distinct from a still photo), and the selected GIF loops silently in place
   while a spinner shows in the badge during its initial fetch. Kitty graphics

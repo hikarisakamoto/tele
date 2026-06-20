@@ -194,7 +194,7 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		if ref, ok := m.chat.SelectedMessageVideo(); ok {
 			if useInAppVideoPlayer(m.imageMode, vmedia.HasFFmpeg()) {
 				dur, sender := m.selectedVideoInfo()
-				return m, m.openVideoPlayerCmd(ref, m.chat.SelectedMessageID(), dur, sender)
+				return m.openVideoModal(ref, m.chat.SelectedMessageID(), dur, sender)
 			}
 			return m, openDocumentCmd(m.ctx, m.tgClient, m.currentPeer(), m.chat.SelectedMessageID(), ref, m.tmpDir)
 		}
