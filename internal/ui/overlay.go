@@ -5,8 +5,33 @@ import (
 
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	kitty "github.com/charmbracelet/x/ansi/kitty"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
 )
+
+// dimBackground flattens content to a faded monochrome wash behind a modal
+// (a btop-style overlay effect). Lines containing a Kitty image placeholder
+// are passed through verbatim: images are left alone, and the placeholder
+// foreground encodes the image ID, which recoloring would corrupt. Every other
+// line has its ANSI stripped and is re-rendered in a single faded gray, so the
+// whole background collapses to one dim hue. Visible width and line count are
+// preserved so the overlay stamping math is unaffected.
+func dimBackground(content string, dark bool) string {
+	gray := lipgloss.Color("240")
+	if !dark {
+		gray = lipgloss.Color("250")
+	}
+	dim := lipgloss.NewStyle().Foreground(gray)
+
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if strings.ContainsRune(line, kitty.Placeholder) {
+			continue
+		}
+		lines[i] = dim.Render(xansi.Strip(line))
+	}
+	return strings.Join(lines, "\n")
+}
 
 // stampOverlay writes overlayLines into baseLines starting at (top, left).
 func stampOverlay(baseLines, overlayLines []string, top, left int) {

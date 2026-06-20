@@ -4,9 +4,52 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi"
+	kitty "github.com/charmbracelet/x/ansi/kitty"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestDimBackground_StripsColorAndAppliesGray(t *testing.T) {
+	// A line with a green foreground SGR around visible text.
+	colored := "\x1b[32mhello\x1b[0m world"
+	out := dimBackground(colored, true)
+
+	// Original green (32) color is gone.
+	assert.NotContains(t, out, "[32m")
+	// Visible text is preserved.
+	assert.Equal(t, "hello world", xansi.Strip(out))
+	// A faded gray foreground is applied (256-color index 240 for dark bg).
+	assert.Contains(t, out, "240")
+}
+
+func TestDimBackground_LightBackgroundUsesLighterGray(t *testing.T) {
+	out := dimBackground("plain text", false)
+	assert.Contains(t, out, "250")
+	assert.Equal(t, "plain text", xansi.Strip(out))
+}
+
+func TestDimBackground_LeavesKittyPlaceholderLinesUntouched(t *testing.T) {
+	imageLine := "\x1b[38;5;7m" + string(kitty.Placeholder) + string(kitty.Diacritic(0)) + "\x1b[0m"
+	out := dimBackground(imageLine, true)
+	assert.Equal(t, imageLine, out)
+}
+
+func TestDimBackground_PreservesLineCountAndWidth(t *testing.T) {
+	in := "\x1b[1;31mline one\x1b[0m\nplain two\n" + string(kitty.Placeholder)
+	out := dimBackground(in, true)
+
+	inLines := strings.Split(in, "\n")
+	outLines := strings.Split(out, "\n")
+	assert.Equal(t, len(inLines), len(outLines))
+
+	// Non-placeholder line widths are preserved.
+	assert.Equal(t, lipgloss.Width(inLines[0]), lipgloss.Width(outLines[0]))
+	assert.Equal(t, lipgloss.Width(inLines[1]), lipgloss.Width(outLines[1]))
+	// Placeholder line is identical.
+	assert.Equal(t, inLines[2], outLines[2])
+}
 
 func TestAnchorMenu_Outgoing_LeftOfBubble(t *testing.T) {
 	area := components.Rect{Top: 1, Left: 10, Height: 20, Width: 40}

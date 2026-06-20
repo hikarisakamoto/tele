@@ -11,6 +11,13 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- Modal overlay dimming: opening a large modal (search, file picker, video
+  player) now fades the background UI to a faded monochrome wash, btop-style, so
+  the modal stands out. Kitty images are left untouched, and the small
+  contextual menus are unaffected.
+
 ## [1.5.0] - 2026-06-20 — Send media & inline video/GIF playback
 
 ### Added

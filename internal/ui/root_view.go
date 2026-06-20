@@ -108,7 +108,7 @@ func (m RootModel) View() tea.View {
 
 		content = main + "\n" + m.statusBar.View()
 		if m.searchModel != nil {
-			content = overlayCenter(content, m.searchModel.View(), m.width, m.height)
+			content = overlayCenter(dimBackground(content, m.hasDarkBackground), m.searchModel.View(), m.width, m.height)
 		}
 		if m.contextMenu != nil {
 			content = m.overlayMenuNearBubble(content, m.contextMenu.View(), chatPanelLeft, chatBoxW)
@@ -120,12 +120,12 @@ func (m RootModel) View() tea.View {
 			content = m.overlayMenuNearBubble(content, m.reactionPicker.View(), chatPanelLeft, chatBoxW)
 		}
 		if m.filePicker != nil {
-			content = overlayCenter(content, m.filePicker.View(), m.width, m.height)
+			content = overlayCenter(dimBackground(content, m.hasDarkBackground), m.filePicker.View(), m.width, m.height)
 		}
 		if m.videoPlayer != nil {
 			// Overlay the modal over the chat using integer geometry (the chat's
 			// Kitty placeholders defeat lipgloss-based stamping).
-			content = m.videoPlayerView(content)
+			content = m.videoPlayerView(dimBackground(content, m.hasDarkBackground))
 		}
 	}
 	v := tea.NewView(content)
