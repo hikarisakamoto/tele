@@ -33,7 +33,9 @@ func TestOpenDocumentCmd_StreamsToTempFile(t *testing.T) {
 	ref := store.DocumentRef{ID: 7, FileName: "clip.mp4"}
 	msg := ui.OpenDocumentCmdForTest(client, store.Peer{ID: 1}, 99, ref, tmpDir)()
 
-	assert.Nil(t, msg, "successful open without refresh returns no message")
+	errText, ok := ui.DocumentOpenErrTextForTest(msg)
+	require.True(t, ok, "completion must be a documentOpenDoneMsg")
+	assert.Empty(t, errText, "successful open reports no error")
 	require.NotEmpty(t, opened, "OS launcher must be invoked with the temp path")
 	assert.Equal(t, tmpDir, filepath.Dir(opened), "temp file lives in tmpDir")
 	assert.Equal(t, ".mp4", filepath.Ext(opened))
@@ -74,11 +76,33 @@ func TestOpenDocumentCmd_TruncatesOnRetry(t *testing.T) {
 	msg := ui.OpenDocumentCmdForTest(client, store.Peer{ID: 1}, 99, ref, tmpDir)()
 
 	assert.Equal(t, 2, calls, "must retry once after refresh")
-	_, isErr := msg.(ui.StatusErrMsg)
-	assert.False(t, isErr, "retry succeeds, so no error status")
+	errText, ok := ui.DocumentOpenErrTextForTest(msg)
+	require.True(t, ok, "completion must be a documentOpenDoneMsg")
+	assert.Empty(t, errText, "retry succeeds, so no error reported")
 	require.NotEmpty(t, opened)
 
 	data, err := os.ReadFile(opened)
 	require.NoError(t, err)
 	assert.Equal(t, fresh, string(data), "stale partial bytes must be truncated away")
+}
+
+// A download failure must report the error text on the completion message so the
+// root handler can surface it (and clear the indicator).
+func TestOpenDocumentCmd_FailureReportsErrText(t *testing.T) {
+	tmpDir := t.TempDir()
+	client := &mockTGClient{
+		downloadDocFileFunc: func(io.Writer) error {
+			return assert.AnError
+		},
+	}
+
+	restore := ui.SetOpenPathForTest(func(string) {})
+	defer restore()
+
+	ref := store.DocumentRef{ID: 7, FileName: "clip.mp4"}
+	msg := ui.OpenDocumentCmdForTest(client, store.Peer{ID: 1}, 99, ref, tmpDir)()
+
+	errText, ok := ui.DocumentOpenErrTextForTest(msg)
+	require.True(t, ok, "completion must be a documentOpenDoneMsg")
+	assert.NotEmpty(t, errText, "failed open must report an error")
 }

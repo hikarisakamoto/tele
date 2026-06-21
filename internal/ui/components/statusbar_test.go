@@ -165,3 +165,44 @@ func TestStatusBar_HintsAppendedAfterStatus(t *testing.T) {
 	hintIdx := strings.Index(view, "j/k move")
 	assert.Greater(t, hintIdx, statusIdx, "hints should appear after status text")
 }
+
+func TestStatusBar_StartDownload_ShowsLabelAndSpinner(t *testing.T) {
+	sb := components.NewStatusBar(80)
+	sb.StartDownload("downloading video…")
+	view := strip(sb.View())
+	assert.Contains(t, view, "downloading video…")
+	assert.Contains(t, view, "[=") // ping-pong spinner frame present
+}
+
+func TestStatusBar_ClearDownload_CurrentSerialClears(t *testing.T) {
+	sb := components.NewStatusBar(80)
+	serial := sb.StartDownload("downloading video…")
+	sb.ClearDownload(serial)
+	assert.NotContains(t, strip(sb.View()), "downloading video…")
+}
+
+func TestStatusBar_ClearDownload_StaleSerialIsNoop(t *testing.T) {
+	sb := components.NewStatusBar(80)
+	stale := sb.StartDownload("first")
+	sb.StartDownload("second") // bumps serial → supersedes
+	sb.ClearDownload(stale)    // stale → ignored
+	assert.Contains(t, strip(sb.View()), "second")
+}
+
+func TestStatusBar_ErrorBeatsDownload(t *testing.T) {
+	sb := components.NewStatusBar(80)
+	sb.StartDownload("downloading video…")
+	sb.SetError("boom", components.SeverityError)
+	view := strip(sb.View())
+	assert.Contains(t, view, "boom")
+	assert.NotContains(t, view, "downloading video…")
+}
+
+func TestStatusBar_DownloadBeatsStatus(t *testing.T) {
+	sb := components.NewStatusBar(80)
+	sb.SetStatus("idle status")
+	sb.StartDownload("downloading video…")
+	view := strip(sb.View())
+	assert.Contains(t, view, "downloading video…")
+	assert.NotContains(t, view, "idle status")
+}

@@ -671,6 +671,24 @@ func TestRoot_ClearStatusErrMsg_StaleSerialKeepsError(t *testing.T) {
 	assert.Contains(t, m3.(ui.RootModel).View().Content, "first")
 }
 
+// An error completion clears the download indicator and surfaces the error text.
+func TestRoot_DocumentOpenDone_ErrorShowsStatus(t *testing.T) {
+	m := ui.NewRootModel(nil, nil, 50, false).WithScreen(ui.ScreenMain)
+	newM, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	done := ui.DocumentOpenDoneMsgForTest(1, "open file failed: boom", components.SeverityWarning)
+	m2, _ := newM.(ui.RootModel).Update(done)
+	assert.Contains(t, m2.(ui.RootModel).View().Content, "open file failed: boom")
+}
+
+// A successful completion adds no error text to the status bar.
+func TestRoot_DocumentOpenDone_SuccessNoError(t *testing.T) {
+	m := ui.NewRootModel(nil, nil, 50, false).WithScreen(ui.ScreenMain)
+	newM, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	done := ui.DocumentOpenDoneMsgForTest(1, "", components.SeverityWarning)
+	m2, _ := newM.(ui.RootModel).Update(done)
+	assert.NotContains(t, m2.(ui.RootModel).View().Content, "failed")
+}
+
 func TestRoot_InitialScreen_Login(t *testing.T) {
 	m := ui.NewRootModel(nil, nil, 50, false)
 	assert.Equal(t, ui.ScreenLogin, m.CurrentScreen())

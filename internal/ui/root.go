@@ -301,6 +301,8 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteMsg(msg)
 	case StatusErrMsg:
 		return m.handleStatusErr(msg)
+	case documentOpenDoneMsg:
+		return m.handleDocumentOpenDone(msg)
 	case ClearStatusErrMsg:
 		m.statusBar.ClearError(msg.Serial)
 		return m, nil

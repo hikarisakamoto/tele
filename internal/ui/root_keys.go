@@ -184,14 +184,14 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				dur, sender := m.selectedVideoInfo()
 				return m.openVideoModal(ref, m.chat.SelectedMessageID(), dur, sender)
 			}
-			return m, openDocumentCmd(m.ctx, m.tgClient, m.currentPeer(), m.chat.SelectedMessageID(), ref, m.tmpDir)
+			return m.startDocumentOpen(ref, m.chat.SelectedMessageID(), m.selectedDownloadLabel())
 		}
 		return m, nil
 	}
 
 	if action == keys.ActionOpenExternal && m.focus == FocusChat {
 		if ref, ok := m.chat.SelectedMessageVideo(); ok {
-			return m, openDocumentCmd(m.ctx, m.tgClient, m.currentPeer(), m.chat.SelectedMessageID(), ref, m.tmpDir)
+			return m.startDocumentOpen(ref, m.chat.SelectedMessageID(), m.selectedDownloadLabel())
 		}
 		return m, nil
 	}

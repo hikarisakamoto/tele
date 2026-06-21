@@ -13,6 +13,11 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ### Added
 
+- Media download indicator: opening a video or round video note in the external
+  player now shows an immediate animated `downloading…` indicator in the status
+  bar, cleared when the player launches and replaced by the usual error status
+  on failure. Covers the external-player path (non-Kitty/`ffmpeg` terminals and
+  explicit `o`); the in-app video modal already shows its own spinner (#114)
 - Modal overlay dimming: opening a large modal (search, file picker, video
   player) now fades the background UI to a faded monochrome wash, btop-style, so
   the modal stands out. Kitty images are left untouched, and the small

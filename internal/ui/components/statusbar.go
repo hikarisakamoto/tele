@@ -42,6 +42,9 @@ type StatusBar struct {
 	errText    string
 	errSev     Severity
 	errSerial  int
+	dlText     string  // active download indicator label, "" when idle
+	dlSerial   int     // identifies the active download, for matched clears
+	dlSpinner  Spinner // ping-pong spinner animated by TickDownloadSpinner
 	// attachStaged is true while a file is staged in the composer (chip shown);
 	// pickerOpen is true while the file-picker overlay is open. Both drive hints.
 	attachStaged bool
@@ -79,6 +82,28 @@ func (sb *StatusBar) ClearError(serial int) {
 	}
 }
 
+// StartDownload shows a transient, animated download indicator with label and
+// returns the serial identifying it, so a later ClearDownload only clears this
+// exact download (a newer StartDownload supersedes it).
+func (sb *StatusBar) StartDownload(label string) int {
+	sb.dlSerial++
+	sb.dlText = label
+	return sb.dlSerial
+}
+
+// ClearDownload clears the indicator only when serial matches the current one,
+// so a stale or superseded completion cannot wipe a newer download's indicator.
+func (sb *StatusBar) ClearDownload(serial int) {
+	if serial == sb.dlSerial {
+		sb.dlText = ""
+	}
+}
+
+// TickDownloadSpinner advances the download indicator's spinner one frame.
+func (sb *StatusBar) TickDownloadSpinner() {
+	sb.dlSpinner.Tick()
+}
+
 func (sb *StatusBar) View() string {
 	modeStyle := normalMode
 	label := "NORMAL"
@@ -91,6 +116,8 @@ func (sb *StatusBar) View() string {
 
 	if sb.errText != "" {
 		segs = append(segs, errStyle(sb.errSev).Render(sb.errText))
+	} else if sb.dlText != "" {
+		segs = append(segs, barStyle.Render(sb.dlSpinner.View()+" "+sb.dlText))
 	} else if sb.status != "" {
 		segs = append(segs, barStyle.Render(sb.status))
 	}

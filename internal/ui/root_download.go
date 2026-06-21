@@ -103,17 +103,47 @@ func (m RootModel) currentPeer() store.Peer {
 	return store.Peer{}
 }
 
+// startDocumentOpen sets the status-bar download indicator with label and
+// dispatches the external-player download; the completion message clears the
+// matching indicator (and surfaces any error).
+func (m RootModel) startDocumentOpen(ref store.DocumentRef, msgID int, label string) (RootModel, tea.Cmd) {
+	serial := m.statusBar.StartDownload(label)
+	return m, openDocumentCmd(m.ctx, m.tgClient, m.currentPeer(), msgID, ref, m.tmpDir, serial)
+}
+
+// selectedDownloadLabel returns the download indicator label for the selected
+// media: round notes read "note", everything else "video".
+func (m RootModel) selectedDownloadLabel() string {
+	if m.st != nil && m.chat != nil {
+		id := m.chat.SelectedMessageID()
+		for _, msg := range m.st.Messages(m.currentChatID) {
+			if msg.ID == id {
+				if msg.Media != nil && msg.Media.Kind == store.MediaVideoNote {
+					return "downloading note…"
+				}
+				break
+			}
+		}
+	}
+	return "downloading video…"
+}
+
 // openDocumentCmd downloads a document in full and opens it in the OS default
-// application (e.g. a video player). Runs async; the download may be large.
-func openDocumentCmd(ctx context.Context, client internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, tmpDir string) tea.Cmd {
+// application (e.g. a video player). Runs async; the download may be large. It
+// always returns a documentOpenDoneMsg so the caller can clear the status-bar
+// download indicator identified by serial (and surface any error).
+func openDocumentCmd(ctx context.Context, client internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, tmpDir string, serial int) tea.Cmd {
 	return func() tea.Msg {
+		fail := func(text string) tea.Msg {
+			return documentOpenDoneMsg{serial: serial, errText: text, sev: components.SeverityWarning}
+		}
 		ext := filepath.Ext(ref.FileName)
 		if ext == "" {
 			ext = extFromMime(ref.MimeType)
 		}
 		f, err := createTempMediaFile(tmpDir, ext)
 		if err != nil {
-			return StatusErrMsg{Text: "open file failed: " + err.Error(), Sev: components.SeverityWarning}
+			return fail("open file failed: " + err.Error())
 		}
 		name := f.Name()
 
@@ -135,23 +165,38 @@ func openDocumentCmd(ctx context.Context, client internaltg.Client, peer store.P
 		if derr != nil {
 			_ = f.Close()
 			_ = os.Remove(name)
-			return StatusErrMsg{Text: "open file failed: " + derr.Error(), Sev: components.SeverityWarning}
+			return fail("open file failed: " + derr.Error())
 		}
 		if cerr := f.Close(); cerr != nil {
 			_ = os.Remove(name)
-			return StatusErrMsg{Text: "open file failed: " + cerr.Error(), Sev: components.SeverityWarning}
+			return fail("open file failed: " + cerr.Error())
 		}
 		openPath(name)
+		done := documentOpenDoneMsg{serial: serial, chatID: peer.ID, msgID: msgID}
 		if refreshed != nil {
-			return mediaRefRefreshedMsg{chatID: peer.ID, msgID: msgID, doc: refreshed.Document}
+			done.doc = refreshed.Document
 		}
-		return nil
+		return done
 	}
 }
 
-// OpenDocumentCmdForTest exposes openDocumentCmd for tests.
+// OpenDocumentCmdForTest exposes openDocumentCmd for tests (serial 0).
 func OpenDocumentCmdForTest(c internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, tmpDir string) tea.Cmd {
-	return openDocumentCmd(context.Background(), c, peer, msgID, ref, tmpDir)
+	return openDocumentCmd(context.Background(), c, peer, msgID, ref, tmpDir, 0)
+}
+
+// DocumentOpenErrTextForTest reports whether msg is a documentOpenDoneMsg and,
+// if so, its error text ("" on success).
+func DocumentOpenErrTextForTest(msg tea.Msg) (string, bool) {
+	if d, ok := msg.(documentOpenDoneMsg); ok {
+		return d.errText, true
+	}
+	return "", false
+}
+
+// DocumentOpenDoneMsgForTest builds a documentOpenDoneMsg for tests.
+func DocumentOpenDoneMsgForTest(serial int, errText string, sev components.Severity) tea.Msg {
+	return documentOpenDoneMsg{serial: serial, errText: errText, sev: sev}
 }
 
 // SetOpenPathForTest swaps the OS file launcher and returns a restore func.

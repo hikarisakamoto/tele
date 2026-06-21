@@ -287,6 +287,22 @@ func (m RootModel) handleStatusErr(msg StatusErrMsg) (RootModel, tea.Cmd) {
 	return m, tea.Tick(d, func(time.Time) tea.Msg { return ClearStatusErrMsg{Serial: serial} })
 }
 
+// handleDocumentOpenDone clears the status-bar download indicator for the
+// completed external open, persists any refreshed ref, and on failure surfaces
+// the error (with the usual auto-clear timer).
+func (m RootModel) handleDocumentOpenDone(msg documentOpenDoneMsg) (RootModel, tea.Cmd) {
+	m.statusBar.ClearDownload(msg.serial)
+	if msg.doc != nil && m.st != nil {
+		m.st.UpdateMessageMedia(msg.chatID, msg.msgID, nil, msg.doc)
+	}
+	if msg.errText != "" {
+		serial := m.statusBar.SetError(msg.errText, msg.sev)
+		d := durationFor(msg.sev)
+		return m, tea.Tick(d, func(time.Time) tea.Msg { return ClearStatusErrMsg{Serial: serial} })
+	}
+	return m, nil
+}
+
 func (m RootModel) handleChatLoadErr(msg chatLoadErrMsg) (RootModel, tea.Cmd) {
 	if msg.chatID == m.currentChatID {
 		m.chat.SetLoading(false)
