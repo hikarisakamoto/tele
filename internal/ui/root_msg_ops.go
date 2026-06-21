@@ -303,6 +303,19 @@ func (m RootModel) handleDocumentOpenDone(msg documentOpenDoneMsg) (RootModel, t
 	return m, nil
 }
 
+// handleFileDownloadDone clears the status-bar download indicator, persists any
+// refreshed ref, and surfaces the result (saved path or error) with the usual
+// auto-clear timer.
+func (m RootModel) handleFileDownloadDone(msg fileDownloadDoneMsg) (RootModel, tea.Cmd) {
+	m.statusBar.ClearDownload(msg.serial)
+	if msg.doc != nil && m.st != nil {
+		m.st.UpdateMessageMedia(msg.chatID, msg.msgID, nil, msg.doc)
+	}
+	serial := m.statusBar.SetError(msg.text, msg.sev)
+	d := durationFor(msg.sev)
+	return m, tea.Tick(d, func(time.Time) tea.Msg { return ClearStatusErrMsg{Serial: serial} })
+}
+
 func (m RootModel) handleChatLoadErr(msg chatLoadErrMsg) (RootModel, tea.Cmd) {
 	if msg.chatID == m.currentChatID {
 		m.chat.SetLoading(false)

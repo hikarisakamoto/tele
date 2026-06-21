@@ -13,6 +13,12 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ### Added
 
+- Download received files: selecting a generic file (document) bubble and
+  pressing `s` — or choosing "Download" in the context menu — streams the file
+  to the OS Downloads folder under its original name, resolving name collisions
+  (`name (1).ext`). A status-bar indicator shows progress (reusing #114) and the
+  saved path is confirmed on completion; failures surface a warning. No external
+  app is launched (#135)
 - Media download indicator: opening a video or round video note in the external
   player now shows an immediate animated `downloading…` indicator in the status
   bar, cleared when the player launches and replaced by the usual error status

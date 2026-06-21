@@ -196,6 +196,13 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if action == keys.ActionDownloadFile && m.focus == FocusChat {
+		if ref, ok := m.chat.SelectedMessageDocument(); ok {
+			return m.startFileDownload(ref, m.chat.SelectedMessageID())
+		}
+		return m, nil
+	}
+
 	if action == keys.ActionPlayVoice && m.focus == FocusChat {
 		return m.handlePlayVoice()
 	}
@@ -209,7 +216,8 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				photoID := m.chat.SelectedMessagePhotoID()
 				_, hasVideo := m.chat.SelectedMessageVideo()
 				_, hasVoice := m.chat.SelectedMessageVoice()
-				m.contextMenu = components.NewContextMenu(msgID, isOut, replyToMsgID, photoID, hasVideo, hasVoice, m.keyMap)
+				_, hasFile := m.chat.SelectedMessageDocument()
+				m.contextMenu = components.NewContextMenu(msgID, isOut, replyToMsgID, photoID, hasVideo, hasVoice, hasFile, m.keyMap)
 			}
 		}
 		return m, nil

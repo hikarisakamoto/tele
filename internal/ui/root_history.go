@@ -206,6 +206,12 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case components.DownloadFileRequest:
+		if ref, ok := m.chat.SelectedMessageDocument(); ok {
+			return m.startFileDownload(ref, m.chat.SelectedMessageID())
+		}
+		return m, nil
+
 	case components.PlayVoiceRequest:
 		return m.handlePlayVoice()
 

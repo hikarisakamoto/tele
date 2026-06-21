@@ -128,6 +128,60 @@ func (m RootModel) selectedDownloadLabel() string {
 	return "downloading video…"
 }
 
+// startFileDownload sets the status-bar download indicator and dispatches a
+// streaming download of a generic file to the Downloads folder.
+func (m RootModel) startFileDownload(ref store.DocumentRef, msgID int) (RootModel, tea.Cmd) {
+	label := "downloading file…"
+	if ref.FileName != "" {
+		label = "downloading " + ref.FileName + "…"
+	}
+	serial := m.statusBar.StartDownload(label)
+	return m, downloadFileCmd(m.ctx, m.tgClient, m.currentPeer(), msgID, ref, downloadsDir(), serial)
+}
+
+// downloadFileCmd streams a document to destDir under its original name
+// (collision-resolved) and reports the saved path (or an error). Mirrors
+// openDocumentCmd's stream-to-disk + FILE_REFERENCE_EXPIRED retry.
+func downloadFileCmd(ctx context.Context, client internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, destDir string, serial int) tea.Cmd {
+	return func() tea.Msg {
+		fail := func(text string) tea.Msg {
+			return fileDownloadDoneMsg{serial: serial, text: text, sev: components.SeverityWarning}
+		}
+		f, err := createUniqueDownloadFile(destDir, ref.FileName)
+		if err != nil {
+			return fail("download failed: " + err.Error())
+		}
+		name := f.Name()
+
+		_, refreshed, derr := downloadWithRefresh(ctx, client, peer, msgID, ref,
+			func(r store.DocumentRef) (struct{}, error) {
+				if _, serr := f.Seek(0, io.SeekStart); serr != nil {
+					return struct{}{}, serr
+				}
+				if terr := f.Truncate(0); terr != nil {
+					return struct{}{}, terr
+				}
+				return struct{}{}, client.DownloadDocumentToFile(ctx, r, f)
+			},
+			pickDocumentRef,
+		)
+		if derr != nil {
+			_ = f.Close()
+			_ = os.Remove(name)
+			return fail("download failed: " + derr.Error())
+		}
+		if cerr := f.Close(); cerr != nil {
+			_ = os.Remove(name)
+			return fail("download failed: " + cerr.Error())
+		}
+		done := fileDownloadDoneMsg{serial: serial, text: "Saved to " + name, sev: components.SeverityInfo, chatID: peer.ID, msgID: msgID}
+		if refreshed != nil {
+			done.doc = refreshed.Document
+		}
+		return done
+	}
+}
+
 // openDocumentCmd downloads a document in full and opens it in the OS default
 // application (e.g. a video player). Runs async; the download may be large. It
 // always returns a documentOpenDoneMsg so the caller can clear the status-bar
@@ -197,6 +251,25 @@ func DocumentOpenErrTextForTest(msg tea.Msg) (string, bool) {
 // DocumentOpenDoneMsgForTest builds a documentOpenDoneMsg for tests.
 func DocumentOpenDoneMsgForTest(serial int, errText string, sev components.Severity) tea.Msg {
 	return documentOpenDoneMsg{serial: serial, errText: errText, sev: sev}
+}
+
+// DownloadFileCmdForTest exposes downloadFileCmd for tests (serial 0).
+func DownloadFileCmdForTest(c internaltg.Client, peer store.Peer, msgID int, ref store.DocumentRef, destDir string) tea.Cmd {
+	return downloadFileCmd(context.Background(), c, peer, msgID, ref, destDir, 0)
+}
+
+// FileDownloadDoneTextForTest reports whether msg is a fileDownloadDoneMsg and,
+// if so, its text and severity.
+func FileDownloadDoneTextForTest(msg tea.Msg) (string, components.Severity, bool) {
+	if d, ok := msg.(fileDownloadDoneMsg); ok {
+		return d.text, d.sev, true
+	}
+	return "", 0, false
+}
+
+// FileDownloadDoneMsgForTest builds a fileDownloadDoneMsg for tests.
+func FileDownloadDoneMsgForTest(serial int, text string, sev components.Severity) tea.Msg {
+	return fileDownloadDoneMsg{serial: serial, text: text, sev: sev}
 }
 
 // SetOpenPathForTest swaps the OS file launcher and returns a restore func.

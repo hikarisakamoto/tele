@@ -123,6 +123,19 @@ type documentOpenDoneMsg struct {
 	doc     *store.DocumentRef
 }
 
+// fileDownloadDoneMsg reports completion of a file download started via
+// startFileDownload. serial identifies the status-bar download indicator to
+// clear. text is the "Saved to <path>" confirmation on success or the error
+// text on failure, with sev distinguishing them. doc is a refreshed ref (or nil).
+type fileDownloadDoneMsg struct {
+	serial int
+	text   string
+	sev    components.Severity
+	chatID int64
+	msgID  int
+	doc    *store.DocumentRef
+}
+
 // chatLoadErrMsg reports a failed chat-open history load.
 type chatLoadErrMsg struct {
 	chatID int64

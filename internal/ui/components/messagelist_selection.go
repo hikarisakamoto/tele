@@ -62,6 +62,16 @@ func (ml *MessageList) SelectedMessageGIF() (store.DocumentRef, bool) {
 	return store.DocumentRef{}, false
 }
 
+// SelectedMessageDocument returns the document ref of the selected message when
+// it is a generic file (not photo/video/voice/gif), for saving to disk.
+func (ml *MessageList) SelectedMessageDocument() (store.DocumentRef, bool) {
+	if msg := ml.computeSelectedMsg(); msg != nil && msg.Media != nil &&
+		msg.Media.Kind == store.MediaFile && msg.Document != nil {
+		return *msg.Document, true
+	}
+	return store.DocumentRef{}, false
+}
+
 func (ml *MessageList) computeSelectedMsgID() int {
 	if msg := ml.computeSelectedMsg(); msg != nil {
 		return msg.ID

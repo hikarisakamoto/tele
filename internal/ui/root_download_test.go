@@ -9,6 +9,7 @@ import (
 	"github.com/gotd/td/tgerr"
 	"github.com/sorokin-vladimir/tele/internal/store"
 	"github.com/sorokin-vladimir/tele/internal/ui"
+	"github.com/sorokin-vladimir/tele/internal/ui/components"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,4 +106,63 @@ func TestOpenDocumentCmd_FailureReportsErrText(t *testing.T) {
 	errText, ok := ui.DocumentOpenErrTextForTest(msg)
 	require.True(t, ok, "completion must be a documentOpenDoneMsg")
 	assert.NotEmpty(t, errText, "failed open must report an error")
+}
+
+func TestDownloadFileCmd_SavesToDir(t *testing.T) {
+	dir := t.TempDir()
+	const body = "the file body"
+	client := &mockTGClient{
+		downloadDocFileFunc: func(dst io.Writer) error {
+			_, err := io.WriteString(dst, body)
+			return err
+		},
+	}
+
+	ref := store.DocumentRef{ID: 7, FileName: "report.pdf"}
+	msg := ui.DownloadFileCmdForTest(client, store.Peer{ID: 1}, 99, ref, dir)()
+
+	text, sev, ok := ui.FileDownloadDoneTextForTest(msg)
+	require.True(t, ok, "completion must be a fileDownloadDoneMsg")
+	assert.Equal(t, components.SeverityInfo, sev)
+	assert.Contains(t, text, filepath.Join(dir, "report.pdf"))
+
+	data, err := os.ReadFile(filepath.Join(dir, "report.pdf"))
+	require.NoError(t, err)
+	assert.Equal(t, body, string(data))
+}
+
+func TestDownloadFileCmd_CollisionGetsSuffix(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "report.pdf"), []byte("old"), 0644))
+
+	client := &mockTGClient{
+		downloadDocFileFunc: func(dst io.Writer) error {
+			_, err := io.WriteString(dst, "new")
+			return err
+		},
+	}
+	ref := store.DocumentRef{ID: 7, FileName: "report.pdf"}
+	msg := ui.DownloadFileCmdForTest(client, store.Peer{ID: 1}, 99, ref, dir)()
+
+	text, _, ok := ui.FileDownloadDoneTextForTest(msg)
+	require.True(t, ok)
+	assert.Contains(t, text, "report (1).pdf")
+}
+
+func TestDownloadFileCmd_FailureLeavesNoFile(t *testing.T) {
+	dir := t.TempDir()
+	client := &mockTGClient{
+		downloadDocFileFunc: func(io.Writer) error { return assert.AnError },
+	}
+	ref := store.DocumentRef{ID: 7, FileName: "report.pdf"}
+	msg := ui.DownloadFileCmdForTest(client, store.Peer{ID: 1}, 99, ref, dir)()
+
+	text, sev, ok := ui.FileDownloadDoneTextForTest(msg)
+	require.True(t, ok)
+	assert.Equal(t, components.SeverityWarning, sev)
+	assert.NotEmpty(t, text)
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "partial download must be removed")
 }

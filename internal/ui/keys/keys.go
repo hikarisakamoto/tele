@@ -91,6 +91,7 @@ func DefaultKeyMap() KeyMap {
 			"p":      ActionPlayVoice,
 			"f":      ActionAttach,
 			"x":      ActionCancelUpload,
+			"s":      ActionDownloadFile,
 		},
 		ContextComposer: {
 			"enter":  ActionConfirm,
@@ -113,6 +114,7 @@ func DefaultKeyMap() KeyMap {
 			"o":     ActionOpenInViewer,
 			"O":     ActionOpenExternal,
 			"p":     ActionPlayVoice,
+			"s":     ActionDownloadFile,
 		},
 		ContextDeleteSubMenu: {
 			"j":     ActionDown,

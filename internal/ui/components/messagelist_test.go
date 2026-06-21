@@ -1553,3 +1553,26 @@ func TestMessageList_ScrollInfo_TopAndBottom(t *testing.T) {
 	assert.Equal(t, 0, top.Offset, "scrolled to top")
 	assert.Equal(t, bottom.Total, top.Total, "total unchanged by scrolling")
 }
+
+func TestMessageList_SelectedMessageDocument_File(t *testing.T) {
+	ml := components.NewMessageList(3, 40)
+	ml.SetMessages([]store.Message{{
+		ID: 1, ChatID: 1, Date: time.Now(),
+		Media:    &store.MediaRef{Kind: store.MediaFile},
+		Document: &store.DocumentRef{ID: 5, FileName: "report.pdf"},
+	}})
+	ml.View()
+
+	ref, ok := ml.SelectedMessageDocument()
+	require.True(t, ok)
+	assert.Equal(t, "report.pdf", ref.FileName)
+}
+
+func TestMessageList_SelectedMessageDocument_NotAFile(t *testing.T) {
+	ml := components.NewMessageList(3, 40)
+	ml.SetMessages([]store.Message{{ID: 1, ChatID: 1, Text: "hi", Date: time.Now()}})
+	ml.View()
+
+	_, ok := ml.SelectedMessageDocument()
+	assert.False(t, ok)
+}

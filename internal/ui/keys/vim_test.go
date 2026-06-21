@@ -52,3 +52,16 @@ func TestDefaultKeyMap_ContextComposer(t *testing.T) {
 	assert.Equal(t, keys.ActionConfirm, km.Resolve(keys.ContextComposer, "enter"))
 	assert.Equal(t, keys.ActionNormal, km.Resolve(keys.ContextComposer, "esc"))
 }
+
+func TestKeyMap_DownloadFile_BoundInChatAndMenu(t *testing.T) {
+	km := keys.DefaultKeyMap()
+	assert.Equal(t, keys.ActionDownloadFile, km.Resolve(keys.ContextChat, "s"))
+	assert.Equal(t, keys.ActionDownloadFile, km.Resolve(keys.ContextContextMenu, "s"))
+}
+
+func TestKeyMap_DownloadFile_RussianLayout(t *testing.T) {
+	km := keys.DefaultKeyMap()
+	// 'ы' sits on the physical 's' key under the Russian layout.
+	assert.Equal(t, keys.ActionDownloadFile, km.Resolve(keys.ContextChat, "ы"))
+	assert.Equal(t, keys.ActionDownloadFile, km.Resolve(keys.ContextContextMenu, "ы"))
+}

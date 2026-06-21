@@ -689,6 +689,38 @@ func TestRoot_DocumentOpenDone_SuccessNoError(t *testing.T) {
 	assert.NotContains(t, m2.(ui.RootModel).View().Content, "failed")
 }
 
+func TestRoot_FileDownloadDone_SuccessShowsPath(t *testing.T) {
+	m := ui.NewRootModel(nil, nil, 50, false).WithScreen(ui.ScreenMain)
+	newM, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	done := ui.FileDownloadDoneMsgForTest(1, "Saved to /tmp/report.pdf", components.SeverityInfo)
+	m2, _ := newM.(ui.RootModel).Update(done)
+	assert.Contains(t, m2.(ui.RootModel).View().Content, "Saved to /tmp/report.pdf")
+}
+
+func TestRoot_FileDownloadDone_ErrorShowsText(t *testing.T) {
+	m := ui.NewRootModel(nil, nil, 50, false).WithScreen(ui.ScreenMain)
+	newM, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	done := ui.FileDownloadDoneMsgForTest(1, "download failed: boom", components.SeverityWarning)
+	m2, _ := newM.(ui.RootModel).Update(done)
+	assert.Contains(t, m2.(ui.RootModel).View().Content, "download failed: boom")
+}
+
+// Selecting a file and pressing the download key starts a download (dispatches a
+// command) without launching an external app.
+func TestRoot_DownloadKey_StartsFileDownload(t *testing.T) {
+	fileMsg := store.Message{
+		ID: 7, ChatID: 1, Date: time.Now(),
+		Media:    &store.MediaRef{Kind: store.MediaFile},
+		Document: &store.DocumentRef{ID: 5, FileName: "report.pdf"},
+	}
+	m, _ := newRootOnChat(t, &mockTGClient{history: []store.Message{fileMsg}})
+	_ = m.View() // establish the selected message
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	// The status-bar download indicator becomes active for the file's name.
+	assert.Contains(t, m2.(ui.RootModel).View().Content, "downloading report.pdf")
+}
+
 func TestRoot_InitialScreen_Login(t *testing.T) {
 	m := ui.NewRootModel(nil, nil, 50, false)
 	assert.Equal(t, ui.ScreenLogin, m.CurrentScreen())

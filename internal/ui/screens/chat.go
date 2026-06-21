@@ -154,6 +154,10 @@ func (m *ChatModel) SelectedMessageGIF() (store.DocumentRef, bool) {
 	return m.msgList.SelectedMessageGIF()
 }
 
+func (m *ChatModel) SelectedMessageDocument() (store.DocumentRef, bool) {
+	return m.msgList.SelectedMessageDocument()
+}
+
 // SelectedBubbleRect returns the selected message bubble's rectangle from the
 // last View(), in coordinates local to the message list's output.
 func (m *ChatModel) SelectedBubbleRect() (components.Rect, bool) {
