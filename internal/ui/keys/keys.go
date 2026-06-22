@@ -86,6 +86,7 @@ func DefaultKeyMap() KeyMap {
 			"space":  ActionOpenContextMenu,
 			"r":      ActionReply,
 			"e":      ActionEdit,
+			"t":      ActionReact,
 			"o":      ActionOpenInViewer,
 			"O":      ActionOpenExternal,
 			"p":      ActionPlayVoice,

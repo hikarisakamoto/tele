@@ -120,25 +120,7 @@ func (m RootModel) updateUIMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		return m, nil
 
 	case components.ReactMsgRequest:
-		m.contextMenu = nil
-		if m.st == nil {
-			return m, nil
-		}
-		var chosen string
-		for _, sm := range m.st.Messages(m.currentChatID) {
-			if sm.ID == msg.MsgID {
-				for _, r := range sm.Reactions {
-					if r.IsChosen {
-						chosen = r.Emoji
-						break
-					}
-				}
-				break
-			}
-		}
-		m.reactionTargetID = msg.MsgID
-		m.reactionPicker = components.NewReactionPicker(chosen)
-		return m, nil
+		return m.openReactionPicker(msg.MsgID), nil
 
 	case components.CloseReactionPickerMsg:
 		m.reactionPicker = nil

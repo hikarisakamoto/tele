@@ -1174,6 +1174,19 @@ func TestRoot_Space_NoMenuWhenNoMessages(t *testing.T) {
 	assert.False(t, m.ContextMenuOpen(), "menu should not open when no message is selected")
 }
 
+func TestRoot_ReactKey_OpensReactionPicker(t *testing.T) {
+	mock := &mockTGClient{}
+	m, st := newRootWithOpenChat(t, mock)
+	st.AppendMessage(store.Message{ID: 10, ChatID: 1, Text: "hello", Date: time.Now()})
+	newM, _ := m.Update(ui.ChatHistoryMsg{ChatID: 1, Messages: st.Messages(1)})
+	m = newM.(ui.RootModel)
+	require.False(t, m.ReactionPickerOpen())
+
+	newM, _ = m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	m = newM.(ui.RootModel)
+	assert.True(t, m.ReactionPickerOpen(), "react key should open the reaction picker")
+}
+
 func TestRoot_ForwardKey_OpensPicker(t *testing.T) {
 	mock := &mockTGClient{}
 	m, st := newRootWithOpenChat(t, mock)

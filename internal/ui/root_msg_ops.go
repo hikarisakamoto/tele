@@ -379,6 +379,30 @@ func (m RootModel) handleChatLoadErr(msg chatLoadErrMsg) (RootModel, tea.Cmd) {
 	})
 }
 
+// openReactionPicker opens the reaction picker for msgID, pre-selecting the
+// already-chosen emoji (if any). No-op when there is no store or no message.
+func (m RootModel) openReactionPicker(msgID int) RootModel {
+	m.contextMenu = nil
+	if m.st == nil || msgID == 0 {
+		return m
+	}
+	var chosen string
+	for _, sm := range m.st.Messages(m.currentChatID) {
+		if sm.ID == msgID {
+			for _, r := range sm.Reactions {
+				if r.IsChosen {
+					chosen = r.Emoji
+					break
+				}
+			}
+			break
+		}
+	}
+	m.reactionTargetID = msgID
+	m.reactionPicker = components.NewReactionPicker(chosen)
+	return m
+}
+
 // openForwardPicker opens the fuzzy chat picker in forward mode for msgID.
 // No-op (returns the model unchanged) when there is no store or no message.
 func (m RootModel) openForwardPicker(msgID int) (RootModel, tea.Cmd) {

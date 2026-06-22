@@ -248,6 +248,13 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if action == keys.ActionReact && m.focus == FocusChat {
+		if m.chat != nil {
+			return m.openReactionPicker(m.chat.SelectedMessageID()), nil
+		}
+		return m, nil
+	}
+
 	if action == keys.ActionForward && m.focus == FocusChat {
 		if m.chat != nil {
 			return m.openForwardPicker(m.chat.SelectedMessageID())

@@ -18,6 +18,9 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
   (reusing the search overlay, with unread counts) lets you filter and confirm
   the destination; forwarding restricted by the source chat's content protection
   surfaces a clear status message (#1)
+- React directly from the chat pane: pressing `t` on the focused message opens
+  the reaction picker (previously reactions were only reachable through the
+  context menu), consistent with `r`/`e` for reply/edit
 
 ### Changed
 
