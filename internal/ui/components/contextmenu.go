@@ -28,6 +28,11 @@ type ReplyMsgRequest struct {
 	MsgID int
 }
 
+// ForwardMsgRequest is emitted when the user activates forward for a message.
+type ForwardMsgRequest struct {
+	MsgID int
+}
+
 // ReactMsgRequest is emitted when the user opens the reaction picker for a message.
 type ReactMsgRequest struct {
 	MsgID int
@@ -85,7 +90,7 @@ var (
 // ContextMenu is a keyboard-navigable context menu overlaid on the chat view.
 type ContextMenu struct {
 	items        []menuItem
-	cursor       int
+	list         *ListView
 	state        menuState
 	msgID        int
 	isOut        bool
@@ -98,8 +103,7 @@ type ContextMenu struct {
 }
 
 func NewContextMenu(msgID int, isOut bool, replyToMsgID int, photoID int64, hasVideo, hasVoice, hasFile bool, km keys.KeyMap) *ContextMenu {
-	return &ContextMenu{
-		items:        mainItems(isOut, replyToMsgID != 0, photoID != 0, hasVideo, hasVoice, hasFile),
+	cm := &ContextMenu{
 		msgID:        msgID,
 		isOut:        isOut,
 		replyToMsgID: replyToMsgID,
@@ -108,10 +112,23 @@ func NewContextMenu(msgID int, isOut bool, replyToMsgID int, photoID int64, hasV
 		hasVoice:     hasVoice,
 		hasFile:      hasFile,
 		keyMap:       km,
+		list:         NewListView(true),
 	}
+	cm.setItems(mainItems(isOut, replyToMsgID != 0, photoID != 0, hasVideo, hasVoice, hasFile))
+	return cm
 }
 
-func (cm *ContextMenu) Cursor() int { return cm.cursor }
+// setItems swaps the menu items and re-seeds the list: non-navigable rows
+// (ActionNone separators) are skipped and the cursor resets to the first
+// selectable row.
+func (cm *ContextMenu) setItems(items []menuItem) {
+	cm.items = items
+	cm.list.SetSelectable(func(i int) bool { return items[i].action != keys.ActionNone })
+	cm.list.SetCount(len(items))
+	cm.list.SetCursor(0)
+}
+
+func (cm *ContextMenu) Cursor() int { return cm.list.Cursor() }
 
 func mainItems(isOut bool, isReply bool, hasPhoto bool, hasVideo bool, hasVoice bool, hasFile bool) []menuItem {
 	var items []menuItem
@@ -121,6 +138,7 @@ func mainItems(isOut bool, isReply bool, hasPhoto bool, hasVideo bool, hasVoice 
 	items = append(items,
 		menuItem{label: "Reply", action: keys.ActionReply},
 		menuItem{label: "React", action: keys.ActionReact},
+		menuItem{label: "Forward", action: keys.ActionForward},
 	)
 	if isOut {
 		items = append(items, menuItem{label: "Edit", action: keys.ActionEdit})
@@ -156,27 +174,8 @@ func (cm *ContextMenu) activeContext() keys.Context {
 	return keys.ContextContextMenu
 }
 
-func (cm *ContextMenu) moveDown() {
-	n := len(cm.items)
-	for i := 1; i < n; i++ {
-		next := (cm.cursor + i) % n
-		if cm.items[next].action != keys.ActionNone {
-			cm.cursor = next
-			return
-		}
-	}
-}
-
-func (cm *ContextMenu) moveUp() {
-	n := len(cm.items)
-	for i := 1; i < n; i++ {
-		prev := (cm.cursor - i + n) % n
-		if cm.items[prev].action != keys.ActionNone {
-			cm.cursor = prev
-			return
-		}
-	}
-}
+func (cm *ContextMenu) moveDown() { cm.list.MoveDown() }
+func (cm *ContextMenu) moveUp()   { cm.list.MoveUp() }
 
 func (cm *ContextMenu) Update(msg tea.Msg) (*ContextMenu, tea.Cmd) {
 	kp, ok := msg.(tea.KeyPressMsg)
@@ -197,8 +196,7 @@ func (cm *ContextMenu) Update(msg tea.Msg) (*ContextMenu, tea.Cmd) {
 	case keys.ActionCancel:
 		if cm.state == stateDeleteSub {
 			cm.state = stateMain
-			cm.items = mainItems(cm.isOut, cm.replyToMsgID != 0, cm.photoID != 0, cm.hasVideo, cm.hasVoice, cm.hasFile)
-			cm.cursor = 0
+			cm.setItems(mainItems(cm.isOut, cm.replyToMsgID != 0, cm.photoID != 0, cm.hasVideo, cm.hasVoice, cm.hasFile))
 			return cm, nil
 		}
 		return nil, func() tea.Msg { return CloseContextMenuMsg{} }
@@ -210,7 +208,7 @@ func (cm *ContextMenu) Update(msg tea.Msg) (*ContextMenu, tea.Cmd) {
 	if action != keys.ActionNone {
 		for i, item := range cm.items {
 			if item.action == action {
-				cm.cursor = i
+				cm.list.SetCursor(i)
 				return cm.execute()
 			}
 		}
@@ -220,7 +218,7 @@ func (cm *ContextMenu) Update(msg tea.Msg) (*ContextMenu, tea.Cmd) {
 }
 
 func (cm *ContextMenu) execute() (*ContextMenu, tea.Cmd) {
-	action := cm.items[cm.cursor].action
+	action := cm.items[cm.list.Cursor()].action
 	switch action {
 	case keys.ActionJumpToOriginal:
 		replyToMsgID := cm.replyToMsgID
@@ -234,12 +232,14 @@ func (cm *ContextMenu) execute() (*ContextMenu, tea.Cmd) {
 	case keys.ActionReact:
 		msgID := cm.msgID
 		return nil, func() tea.Msg { return ReactMsgRequest{MsgID: msgID} }
+	case keys.ActionForward:
+		msgID := cm.msgID
+		return nil, func() tea.Msg { return ForwardMsgRequest{MsgID: msgID} }
 	case keys.ActionCancel:
 		return nil, func() tea.Msg { return CloseContextMenuMsg{} }
 	case keys.ActionDelete:
 		cm.state = stateDeleteSub
-		cm.items = deleteSubItems()
-		cm.cursor = 0
+		cm.setItems(deleteSubItems())
 		return cm, nil
 	case keys.ActionDeleteMe:
 		msgID := cm.msgID
@@ -302,7 +302,7 @@ func (cm *ContextMenu) View() string {
 
 	// apply per-row backgrounds (selected vs normal)
 	for i := range rows {
-		if i == cm.cursor && cm.items[i].action != keys.ActionNone {
+		if i == cm.list.Cursor() && cm.items[i].action != keys.ActionNone {
 			rows[i] = menuSelectedStyle.Width(innerW).Render(rows[i])
 		} else {
 			rows[i] = menuBgStyle.Width(innerW).Render(rows[i])

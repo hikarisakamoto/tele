@@ -11,6 +11,26 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- Forward messages: select a focused message and forward it to another chat via
+  the context-menu "Forward" entry or the `f` key. A fuzzy target-chat picker
+  (reusing the search overlay, with unread counts) lets you filter and confirm
+  the destination; forwarding restricted by the source chat's content protection
+  surfaces a clear status message (#1)
+
+### Changed
+
+- Keybinding: `f` now forwards the focused message; staging a file attachment
+  moved to `u` (the status-bar hint reads "upload")
+
+### Fixed
+
+- Chat pickers (search `/` and the forward picker) now scroll to keep the
+  selected row visible when the cursor moves past the visible window, instead of
+  letting the highlight run off-view. Cursor and scroll behavior is now shared by
+  all list modals
+
 ## [1.6.0] - 2026-06-21
 
 ### Added

@@ -92,6 +92,10 @@ func (m *mockClient) EditMessage(_ context.Context, _ store.Peer, _ int, _ strin
 	return nil
 }
 
+func (m *mockClient) ForwardMessages(_ context.Context, _ store.Peer, _ store.Peer, _ []int) error {
+	return nil
+}
+
 func (m *mockClient) SendReaction(_ context.Context, _ store.Peer, _ int, _ string) error {
 	return nil
 }

@@ -15,6 +15,13 @@ import (
 
 type OpenChatMsg struct{ Chat store.Chat }
 
+// ForwardToChatRequest is emitted by the forward-mode chat picker when the user
+// confirms a target chat. The source peer is resolved by the root model.
+type ForwardToChatRequest struct {
+	ToPeer store.Peer
+	MsgID  int
+}
+
 var (
 	selectedChatStyle = lipgloss.NewStyle().Background(lipgloss.Color("63")).Foreground(lipgloss.Color("0"))
 	normalChatStyle   = lipgloss.NewStyle()

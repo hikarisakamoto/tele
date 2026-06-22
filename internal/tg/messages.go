@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"go.uber.org/zap"
 
 	"github.com/sorokin-vladimir/tele/internal/store"
@@ -148,6 +150,53 @@ func (c *GotdClient) SendMedia(ctx context.Context, p SendMediaParams) (int, err
 		return nil
 	})
 	return realID, err
+}
+
+// ErrForwardRestricted is returned by ForwardMessages when the source chat has
+// content protection enabled (the server replies CHAT_FORWARDS_RESTRICTED).
+var ErrForwardRestricted = errors.New("forwarding restricted")
+
+// ForwardMessages forwards messages by ID from one peer to another via
+// messages.forwardMessages. No optimistic insert is performed: when the target
+// is the open chat, the message arrives through the normal live-update path.
+func (c *GotdClient) ForwardMessages(ctx context.Context, from store.Peer, to store.Peer, ids []int) error {
+	api, err := c.acquireAPI()
+	if err != nil {
+		return err
+	}
+	c.traceLog.Debug("ForwardMessages", zap.Int64("from", from.ID), zap.Int64("to", to.ID), zap.Int("count", len(ids)))
+	return WithRetry(ctx, func() error {
+		randomIDs := make([]int64, len(ids))
+		for i := range randomIDs {
+			var buf [8]byte
+			if _, err := rand.Read(buf[:]); err != nil {
+				return err
+			}
+			randomIDs[i] = int64(binary.LittleEndian.Uint64(buf[:]))
+		}
+		_, err := api.MessagesForwardMessages(ctx, buildForwardRequest(peerToInput(from), peerToInput(to), ids, randomIDs))
+		if err != nil {
+			if isForwardRestrictedErr(err) {
+				return ErrForwardRestricted
+			}
+			c.log.Error("MessagesForwardMessages failed", zap.Error(err))
+			return err
+		}
+		return nil
+	})
+}
+
+func buildForwardRequest(fromPeer, toPeer tg.InputPeerClass, ids []int, randomIDs []int64) *tg.MessagesForwardMessagesRequest {
+	return &tg.MessagesForwardMessagesRequest{
+		FromPeer: fromPeer,
+		ToPeer:   toPeer,
+		ID:       ids,
+		RandomID: randomIDs,
+	}
+}
+
+func isForwardRestrictedErr(err error) bool {
+	return tgerr.Is(err, "CHAT_FORWARDS_RESTRICTED")
 }
 
 func buildSendRequest(inputPeer tg.InputPeerClass, text string, randomID int64, replyToMsgID int) *tg.MessagesSendMessageRequest {

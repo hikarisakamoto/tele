@@ -1,6 +1,7 @@
 package screens_test
 
 import (
+	"fmt"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -50,6 +51,50 @@ func TestSearch_CursorClamped(t *testing.T) {
 	m := screens.NewSearchModel(makeSearchChats(), 80, 24, nil)
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, 0, m.Cursor())
+}
+
+func makeForwardChats() []store.Chat {
+	return []store.Chat{
+		{ID: 1, Title: "Alice", Peer: store.Peer{ID: 1, Type: store.PeerUser}, UnreadCount: 3},
+		{ID: 2, Title: "Bob", Peer: store.Peer{ID: 2, Type: store.PeerUser}},
+	}
+}
+
+func TestForwardPicker_EnterEmitsForwardToChatRequest(t *testing.T) {
+	m := screens.NewForwardPicker(makeForwardChats(), 55, 80, 24, nil)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	req, ok := cmd().(screens.ForwardToChatRequest)
+	require.True(t, ok)
+	assert.Equal(t, 55, req.MsgID)
+	assert.Equal(t, int64(1), req.ToPeer.ID)
+}
+
+func TestForwardPicker_RendersUnreadCount(t *testing.T) {
+	m := screens.NewForwardPicker(makeForwardChats(), 55, 80, 24, nil)
+	assert.Contains(t, m.View(), "3")
+}
+
+func TestForwardPicker_FiltersLikeSearch(t *testing.T) {
+	m := screens.NewForwardPicker(makeForwardChats(), 55, 80, 24, nil)
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'b', Text: "b"})
+	view := m.View()
+	assert.Contains(t, view, "Bob")
+	assert.NotContains(t, view, "Alice")
+}
+
+func TestSearch_CursorBelowWindow_StaysVisible(t *testing.T) {
+	chats := make([]store.Chat, 20)
+	for i := range chats {
+		chats[i] = store.Chat{ID: int64(i + 1), Title: fmt.Sprintf("Chat%02d", i)}
+	}
+	m := screens.NewSearchModel(chats, 80, 24, nil)
+	for i := 0; i < 12; i++ { // move well past the 8-row window
+		m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	}
+	view := m.View()
+	assert.Equal(t, 12, m.Cursor())
+	assert.Contains(t, view, "Chat12", "selected row must stay within the rendered window")
 }
 
 func TestSearch_EnterEmitsOpenChatMsg(t *testing.T) {

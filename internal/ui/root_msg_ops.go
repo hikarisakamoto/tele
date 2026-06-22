@@ -2,11 +2,13 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/sorokin-vladimir/tele/internal/store"
+	internaltg "github.com/sorokin-vladimir/tele/internal/tg"
 	"github.com/sorokin-vladimir/tele/internal/ui/components"
 	"github.com/sorokin-vladimir/tele/internal/ui/keys"
 	"github.com/sorokin-vladimir/tele/internal/ui/screens"
@@ -33,6 +35,12 @@ type deleteMsgFailedMsg struct {
 type editMsgFailedMsg struct {
 	chatID   int64
 	messages []store.Message
+}
+
+type forwardDoneMsg struct {
+	toTitle    string
+	restricted bool
+	failed     bool
 }
 
 func (m RootModel) handleSendMsg(msg screens.SendMsgRequest) (RootModel, tea.Cmd) {
@@ -369,6 +377,67 @@ func (m RootModel) handleChatLoadErr(msg chatLoadErrMsg) (RootModel, tea.Cmd) {
 	return m, tea.Tick(durationFor(components.SeverityError), func(time.Time) tea.Msg {
 		return ClearStatusErrMsg{Serial: serial}
 	})
+}
+
+// openForwardPicker opens the fuzzy chat picker in forward mode for msgID.
+// No-op (returns the model unchanged) when there is no store or no message.
+func (m RootModel) openForwardPicker(msgID int) (RootModel, tea.Cmd) {
+	if m.st == nil || msgID == 0 {
+		return m, nil
+	}
+	m.contextMenu = nil
+	m.searchModel = screens.NewForwardPicker(m.st.Chats(), msgID, m.width, m.height, m.keyMap)
+	return m, nil
+}
+
+// handleForwardToChat closes the picker and forwards the message from the open
+// chat to the chosen target peer, surfacing the result via a status message.
+func (m RootModel) handleForwardToChat(msg screens.ForwardToChatRequest) (RootModel, tea.Cmd) {
+	m.searchModel = nil
+	if m.st == nil || m.tgClient == nil {
+		return m, nil
+	}
+	chat, ok := m.st.GetChat(m.currentChatID)
+	if !ok {
+		return m, nil
+	}
+	var toTitle string
+	if target, ok := m.st.GetChat(msg.ToPeer.ID); ok {
+		toTitle = target.Title
+	}
+	ctx := m.ctx
+	client := m.tgClient
+	from := chat.Peer
+	to := msg.ToPeer
+	ids := []int{msg.MsgID}
+	return m, func() tea.Msg {
+		err := client.ForwardMessages(ctx, from, to, ids)
+		switch {
+		case err == nil:
+			return forwardDoneMsg{toTitle: toTitle}
+		case errors.Is(err, internaltg.ErrForwardRestricted):
+			return forwardDoneMsg{toTitle: toTitle, restricted: true}
+		default:
+			return forwardDoneMsg{toTitle: toTitle, failed: true}
+		}
+	}
+}
+
+// handleForwardDone turns a completed forward into a status message.
+func (m RootModel) handleForwardDone(msg forwardDoneMsg) (RootModel, tea.Cmd) {
+	switch {
+	case msg.restricted:
+		return m, func() tea.Msg {
+			return StatusErrMsg{Text: "forwarding restricted", Sev: components.SeverityWarning}
+		}
+	case msg.failed:
+		return m, func() tea.Msg {
+			return StatusErrMsg{Text: "forward failed", Sev: components.SeverityWarning}
+		}
+	default:
+		m.statusBar.SetStatus("Forwarded to " + msg.toTitle)
+		return m, nil
+	}
 }
 
 // activateReply sets reply state for msgID, switches to insert mode, and returns the FocusComposer cmd.

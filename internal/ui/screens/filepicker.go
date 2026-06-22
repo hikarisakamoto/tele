@@ -31,7 +31,7 @@ type FilePickerModel struct {
 	all     []os.DirEntry // raw entries (dirs first), excluding ".."
 	entries []os.DirEntry // filtered view, with a synthetic ".." prepended
 	filter  string
-	cursor  int
+	list    *components.ListView
 	width   int
 	height  int
 	keyMap  keys.KeyMap
@@ -45,21 +45,22 @@ func NewFilePickerModel(startDir string, width, height int, km keys.KeyMap) *Fil
 			startDir = "."
 		}
 	}
-	m := &FilePickerModel{dir: startDir, width: width, height: height, keyMap: km}
+	m := &FilePickerModel{dir: startDir, width: width, height: height, keyMap: km, list: components.NewListView(false)}
 	m.readDir()
 	return m
 }
 
 func (m *FilePickerModel) Dir() string            { return m.dir }
-func (m *FilePickerModel) Cursor() int            { return m.cursor }
+func (m *FilePickerModel) Cursor() int            { return m.list.Cursor() }
 func (m *FilePickerModel) Entries() []os.DirEntry { return m.entries }
 
 // CurrentName returns the name of the entry under the cursor ("" if none).
 func (m *FilePickerModel) CurrentName() string {
-	if m.cursor < 0 || m.cursor >= len(m.entries) {
+	c := m.list.Cursor()
+	if c < 0 || c >= len(m.entries) {
 		return ""
 	}
-	return m.entries[m.cursor].Name()
+	return m.entries[c].Name()
 }
 
 // dotDot is a synthetic directory entry for the parent directory.
@@ -84,8 +85,8 @@ func (m *FilePickerModel) readDir() {
 	})
 	m.all = ents
 	m.filter = ""
-	m.cursor = 0
 	m.applyFilter()
+	m.list.SetCursor(0) // reset to top when entering a directory
 }
 
 func (m *FilePickerModel) applyFilter() {
@@ -103,9 +104,7 @@ func (m *FilePickerModel) applyFilter() {
 		}
 	}
 	m.entries = out
-	if m.cursor >= len(m.entries) {
-		m.cursor = 0
-	}
+	m.list.SetCount(len(m.entries))
 }
 
 func (m *FilePickerModel) ascend() {
@@ -163,17 +162,8 @@ func (m *FilePickerModel) Update(msg tea.Msg) (*FilePickerModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m *FilePickerModel) moveDown() {
-	if m.cursor < len(m.entries)-1 {
-		m.cursor++
-	}
-}
-
-func (m *FilePickerModel) moveUp() {
-	if m.cursor > 0 {
-		m.cursor--
-	}
-}
+func (m *FilePickerModel) moveDown() { m.list.MoveDown() }
+func (m *FilePickerModel) moveUp()   { m.list.MoveUp() }
 
 func (m *FilePickerModel) confirm() (*FilePickerModel, tea.Cmd) {
 	name := m.CurrentName()
@@ -184,7 +174,7 @@ func (m *FilePickerModel) confirm() (*FilePickerModel, tea.Cmd) {
 		m.ascend()
 		return m, nil
 	}
-	if m.entries[m.cursor].IsDir() {
+	if m.entries[m.list.Cursor()].IsDir() {
 		m.descend(name)
 		return m, nil
 	}
@@ -222,32 +212,19 @@ func (m *FilePickerModel) View() string {
 	}
 	inner := w - 2
 
-	// Scroll window: keep the cursor vertically centered when possible, clamped at
-	// the list ends, so moving past the middle scrolls instead of running off-view.
-	offset := 0
-	if len(m.entries) > filePickerMaxRows {
-		offset = m.cursor - filePickerMaxRows/2
-		if max := len(m.entries) - filePickerMaxRows; offset > max {
-			offset = max
-		}
-		if offset < 0 {
-			offset = 0
-		}
-	}
-
-	lines := []string{}
-	for i := offset; i < len(m.entries) && i < offset+filePickerMaxRows; i++ {
+	rowFn := func(i int, selected bool) string {
 		e := m.entries[i]
 		label := e.Name()
 		if e.IsDir() {
 			label += "/"
 		}
 		style := lipgloss.NewStyle().Inline(true).Width(inner).MaxWidth(inner)
-		if i == m.cursor {
+		if selected {
 			style = style.Background(lipgloss.Color("63")).Foreground(lipgloss.Color("0"))
 		}
-		lines = append(lines, style.Render(label))
+		return style.Render(label)
 	}
+	lines := m.list.Render(filePickerMaxRows, rowFn)
 	if len(m.entries) == 0 {
 		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Width(inner).Render("empty"))
 	}

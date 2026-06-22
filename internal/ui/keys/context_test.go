@@ -14,7 +14,9 @@ func TestKeyMap_Resolve_ChatList(t *testing.T) {
 
 func TestFilePickerBindings(t *testing.T) {
 	km := keys.DefaultKeyMap()
-	assert.Equal(t, keys.ActionAttach, km.Resolve(keys.ContextChat, "f"))
+	assert.Equal(t, keys.ActionForward, km.Resolve(keys.ContextChat, "f"))
+	assert.Equal(t, keys.ActionAttach, km.Resolve(keys.ContextChat, "u"))
+	assert.Equal(t, keys.ActionForward, km.Resolve(keys.ContextContextMenu, "f"))
 	assert.Equal(t, keys.ActionCancelUpload, km.Resolve(keys.ContextChat, "x"))
 	assert.Equal(t, keys.ActionToggleSendAs, km.Resolve(keys.ContextComposer, "ctrl+t"))
 	assert.Equal(t, keys.ActionConfirm, km.Resolve(keys.ContextFilePicker, "enter"))

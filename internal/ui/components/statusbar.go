@@ -201,7 +201,7 @@ func (sb *StatusBar) hints() string {
 			hintNav(down, up, "scroll", a),
 			hintNav(curDown, curUp, "select", a),
 			hintKey(write, "write", a),
-			hintKey(attach, "attach", a),
+			hintKey(attach, "upload", a),
 			hintKey(open, "open", a),
 			hintKey(quit, "quit", a),
 		)

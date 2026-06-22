@@ -32,13 +32,15 @@ func TestStatusBar_StatusText(t *testing.T) {
 	assert.Contains(t, strip(sb.View()), "Loading...")
 }
 
-func TestStatusBar_ChatHintsIncludeAttach(t *testing.T) {
+func TestStatusBar_ChatHintsIncludeUpload(t *testing.T) {
 	km := keys.DefaultKeyMap()
 	sb := components.NewStatusBar(160)
 	sb.SetKeyMap(km)
 	sb.SetActivePane("chat")
 	sb.SetMode(keys.ModeNormal)
-	assert.Contains(t, strip(sb.View()), "f attach")
+	// "u" is bound to attach and is the first letter of "upload", so the hint
+	// highlights the letter in place rather than prefixing the key.
+	assert.Contains(t, strip(sb.View()), "upload")
 }
 
 func TestStatusBar_PickerHints(t *testing.T) {

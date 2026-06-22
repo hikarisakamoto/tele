@@ -56,6 +56,10 @@ type Client interface {
 	DownloadDocumentImage(ctx context.Context, ref store.DocumentRef) (image.Image, error)
 	DeleteMessages(ctx context.Context, peer store.Peer, ids []int, revoke bool) error
 	EditMessage(ctx context.Context, peer store.Peer, msgID int, text string) error
+	// ForwardMessages forwards messages by ID from one peer to another via
+	// messages.forwardMessages. Returns ErrForwardRestricted when the source
+	// chat forbids forwarding (content protection).
+	ForwardMessages(ctx context.Context, from store.Peer, to store.Peer, ids []int) error
 	SendReaction(ctx context.Context, peer store.Peer, msgID int, emoji string) error
 	SetTyping(ctx context.Context, peer store.Peer, action store.TypingAction) error
 	// SaveDraft persists (text != "") or clears (text == "") the message draft

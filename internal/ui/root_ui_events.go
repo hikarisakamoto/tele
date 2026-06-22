@@ -100,6 +100,9 @@ func (m RootModel) updateUIMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		m.contextMenu = nil
 		return m, m.activateReply(msg.MsgID)
 
+	case components.ForwardMsgRequest:
+		return m.openForwardPicker(msg.MsgID)
+
 	case components.EditMsgRequest:
 		m.contextMenu = nil
 		return m, m.activateEdit(msg.MsgID)

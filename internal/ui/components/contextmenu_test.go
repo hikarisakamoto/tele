@@ -32,6 +32,20 @@ func pressSpace() tea.KeyPressMsg { return keyMsg(' ') }
 
 // --- item display ---
 
+func TestContextMenu_HasForwardItem(t *testing.T) {
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, false, defaultKM())
+	assert.Contains(t, cm.View(), "Forward")
+}
+
+func TestContextMenu_F_EmitsForwardRequest(t *testing.T) {
+	cm := components.NewContextMenu(7, false, 0, 0, false, false, false, defaultKM())
+	_, cmd := cm.Update(keyMsg('f'))
+	require.NotNil(t, cmd)
+	req, ok := cmd().(components.ForwardMsgRequest)
+	require.True(t, ok)
+	assert.Equal(t, 7, req.MsgID)
+}
+
 func TestNewContextMenu_IncomingItems(t *testing.T) {
 	cm := components.NewContextMenu(1, false, 0, 0, false, false, false, defaultKM())
 	view := cm.View()
@@ -107,10 +121,10 @@ func TestContextMenu_UpArrow_MovesCursorUp(t *testing.T) {
 
 func TestContextMenu_WrapAround_K_FromFirst_GoesToLast(t *testing.T) {
 	cm := components.NewContextMenu(1, false, 0, 0, false, false, false, defaultKM())
-	// incoming: Reply(0), React(1), Delete(2)
+	// incoming: Reply(0), React(1), Forward(2), Delete(3)
 	cm, _ = cm.Update(pressK())
 	require.NotNil(t, cm)
-	assert.Equal(t, 2, cm.Cursor()) // wrapped to Delete
+	assert.Equal(t, 3, cm.Cursor()) // wrapped to Delete
 }
 
 // --- close actions ---
@@ -160,6 +174,8 @@ func TestContextMenu_Edit_EmitsEditMsgRequest(t *testing.T) {
 	cm := components.NewContextMenu(42, true, 0, 0, false, false, false, defaultKM())
 	cm, _ = cm.Update(pressJ()) // React
 	require.NotNil(t, cm)
+	cm, _ = cm.Update(pressJ()) // Forward
+	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ()) // Edit
 	require.NotNil(t, cm)
 	newCM, cmd := cm.Update(pressEnter())
@@ -196,7 +212,7 @@ func TestContextMenu_DirectKey_R_EmitsReplyMsgRequest(t *testing.T) {
 
 func TestContextMenu_Reply_OutgoingMessage_EmitsReplyMsgRequest(t *testing.T) {
 	cm := components.NewContextMenu(99, true, 0, 0, false, false, false, defaultKM())
-	// outgoing: Reply(0) React(1) Edit(2) Delete(3); cursor at 0
+	// outgoing: Reply(0) React(1) Forward(2) Edit(3) Delete(4); cursor at 0
 	newCM, cmd := cm.Update(pressEnter())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -226,7 +242,9 @@ func TestContextMenu_DirectKey_D_OutgoingShowsSubMenu(t *testing.T) {
 
 func TestContextMenu_DeleteIncoming_ShowsSubMenu(t *testing.T) {
 	cm := components.NewContextMenu(42, false, 0, 0, false, false, false, defaultKM())
-	// incoming: Reply(0), React(1), Delete(2)
+	// incoming: Reply(0), React(1), Forward(2), Delete(3)
+	cm, _ = cm.Update(pressJ())
+	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ())
@@ -240,7 +258,9 @@ func TestContextMenu_DeleteIncoming_ShowsSubMenu(t *testing.T) {
 
 func TestContextMenu_DeleteOutgoing_ShowsSubPrompt(t *testing.T) {
 	cm := components.NewContextMenu(42, true, 0, 0, false, false, false, defaultKM())
-	// outgoing: Reply(0), React(1), Edit(2), Delete(3)
+	// outgoing: Reply(0), React(1), Forward(2), Edit(3), Delete(4)
+	cm, _ = cm.Update(pressJ())
+	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ())
@@ -405,8 +425,10 @@ func TestContextMenu_DirectKey_G_JumpsToOriginal(t *testing.T) {
 func navigateToDeleteSubPrompt(t *testing.T) *components.ContextMenu {
 	t.Helper()
 	cm := components.NewContextMenu(99, true, 0, 0, false, false, false, defaultKM())
-	// outgoing: Reply(0) React(1) Edit(2) Delete(3)
+	// outgoing: Reply(0) React(1) Forward(2) Edit(3) Delete(4)
 	cm, _ = cm.Update(pressJ()) // React
+	require.NotNil(t, cm)
+	cm, _ = cm.Update(pressJ()) // Forward
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ()) // Edit
 	require.NotNil(t, cm)
@@ -420,7 +442,9 @@ func navigateToDeleteSubPrompt(t *testing.T) *components.ContextMenu {
 func navigateToIncomingDeleteSubPrompt(t *testing.T) *components.ContextMenu {
 	t.Helper()
 	cm := components.NewContextMenu(77, false, 0, 0, false, false, false, defaultKM())
-	// incoming: Reply(0), React(1), Delete(2)
+	// incoming: Reply(0), React(1), Forward(2), Delete(3)
+	cm, _ = cm.Update(pressJ())
+	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ())

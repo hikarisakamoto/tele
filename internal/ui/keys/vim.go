@@ -33,6 +33,7 @@ const (
 	ActionReply           Action = "reply"
 	ActionReact           Action = "react"
 	ActionEdit            Action = "edit"
+	ActionForward         Action = "forward"
 	ActionDelete          Action = "delete"
 	ActionDeleteRevoke    Action = "delete_revoke"
 	ActionDeleteMe        Action = "delete_me"

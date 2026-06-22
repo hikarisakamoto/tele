@@ -45,18 +45,28 @@ type ChatContextMenu struct {
 	folders   []store.FolderFilter
 	items     []menuItem
 	savedMain []menuItem
-	cursor    int
+	list      *ListView
 	state     chatMenuState
 	keyMap    keys.KeyMap
 }
 
 func NewChatContextMenu(chat store.Chat, folders []store.FolderFilter, km keys.KeyMap) *ChatContextMenu {
-	cm := &ChatContextMenu{chat: chat, folders: folders, keyMap: km}
-	cm.items = cm.mainItems()
+	cm := &ChatContextMenu{chat: chat, folders: folders, keyMap: km, list: NewListView(true)}
+	cm.setItems(cm.mainItems())
 	return cm
 }
 
-func (cm *ChatContextMenu) Cursor() int { return cm.cursor }
+// setItems swaps the menu items and re-seeds the list: separator rows are
+// skipped (folder rows carry ActionNone but stay navigable) and the cursor
+// resets to the first selectable row.
+func (cm *ChatContextMenu) setItems(items []menuItem) {
+	cm.items = items
+	cm.list.SetSelectable(func(i int) bool { return !items[i].separator })
+	cm.list.SetCount(len(items))
+	cm.list.SetCursor(0)
+}
+
+func (cm *ChatContextMenu) Cursor() int { return cm.list.Cursor() }
 
 func (cm *ChatContextMenu) mainItems() []menuItem {
 	var items []menuItem
@@ -111,19 +121,8 @@ func (cm *ChatContextMenu) activeContext() keys.Context {
 	return keys.ContextChatMenu
 }
 
-func (cm *ChatContextMenu) moveDown() { cm.move(1) }
-func (cm *ChatContextMenu) moveUp()   { cm.move(-1) }
-
-func (cm *ChatContextMenu) move(dir int) {
-	n := len(cm.items)
-	for i := 1; i < n; i++ {
-		next := ((cm.cursor+dir*i)%n + n) % n
-		if !cm.items[next].separator {
-			cm.cursor = next
-			return
-		}
-	}
-}
+func (cm *ChatContextMenu) moveDown() { cm.list.MoveDown() }
+func (cm *ChatContextMenu) moveUp()   { cm.list.MoveUp() }
 
 func (cm *ChatContextMenu) Update(msg tea.Msg) (*ChatContextMenu, tea.Cmd) {
 	kp, ok := msg.(tea.KeyPressMsg)
@@ -140,8 +139,7 @@ func (cm *ChatContextMenu) Update(msg tea.Msg) (*ChatContextMenu, tea.Cmd) {
 		return cm, nil
 	case keys.ActionCancel:
 		if cm.state == chatStateFolderSub {
-			cm.items = cm.savedMain
-			cm.cursor = 0
+			cm.setItems(cm.savedMain)
 			cm.state = chatStateMain
 			return cm, nil
 		}
@@ -152,7 +150,7 @@ func (cm *ChatContextMenu) Update(msg tea.Msg) (*ChatContextMenu, tea.Cmd) {
 	if action != keys.ActionNone {
 		for i, it := range cm.items {
 			if it.action == action && !it.separator {
-				cm.cursor = i
+				cm.list.SetCursor(i)
 				return cm.execute()
 			}
 		}
@@ -161,7 +159,7 @@ func (cm *ChatContextMenu) Update(msg tea.Msg) (*ChatContextMenu, tea.Cmd) {
 }
 
 func (cm *ChatContextMenu) execute() (*ChatContextMenu, tea.Cmd) {
-	item := cm.items[cm.cursor]
+	item := cm.items[cm.list.Cursor()]
 	peer := cm.chat.Peer
 
 	if item.isFolder {
@@ -189,8 +187,7 @@ func (cm *ChatContextMenu) execute() (*ChatContextMenu, tea.Cmd) {
 		return nil, func() tea.Msg { return ToggleMuteRequest{Peer: peer, Muted: false} }
 	case keys.ActionAddToFolder:
 		cm.savedMain = cm.items
-		cm.items = cm.folderSubItems()
-		cm.cursor = 0
+		cm.setItems(cm.folderSubItems())
 		cm.state = chatStateFolderSub
 		return cm, nil
 	case keys.ActionArchive:
@@ -239,7 +236,7 @@ func (cm *ChatContextMenu) View() string {
 	}
 
 	for i := range rows {
-		if i == cm.cursor && !cm.items[i].separator {
+		if i == cm.list.Cursor() && !cm.items[i].separator {
 			rows[i] = menuSelectedStyle.Width(innerW).Render(rows[i])
 		} else {
 			rows[i] = menuBgStyle.Width(innerW).Render(rows[i])

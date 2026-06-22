@@ -40,6 +40,10 @@ type mockTGClient struct {
 	uploadErr            error
 	lastSendMediaParams  internaltg.SendMediaParams
 	savedDrafts          []savedDraft
+	forwardErr           error
+	lastForwardFrom      store.Peer
+	lastForwardTo        store.Peer
+	lastForwardIDs       []int
 }
 
 type savedDraft struct {
@@ -131,6 +135,12 @@ func (m *mockTGClient) EditMessage(_ context.Context, _ store.Peer, _ int, _ str
 }
 func (m *mockTGClient) DeleteMessages(_ context.Context, _ store.Peer, _ []int, _ bool) error {
 	return nil
+}
+func (m *mockTGClient) ForwardMessages(_ context.Context, from store.Peer, to store.Peer, ids []int) error {
+	m.lastForwardFrom = from
+	m.lastForwardTo = to
+	m.lastForwardIDs = ids
+	return m.forwardErr
 }
 func (m *mockTGClient) SendReaction(_ context.Context, _ store.Peer, _ int, _ string) error {
 	return m.reactionErr
@@ -405,10 +415,10 @@ func writeTempFile(t *testing.T, name, content string) string {
 func TestAttachOpensPickerAndStages(t *testing.T) {
 	m, _ := newRootOnChat(t, &mockTGClient{})
 
-	nm, _ := m.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	nm, _ := m.Update(tea.KeyPressMsg{Code: 'u', Text: "u"})
 	m = nm.(ui.RootModel)
 	if !m.FilePickerOpen() {
-		t.Fatal("file picker not open after 'f'")
+		t.Fatal("file picker not open after 'u'")
 	}
 
 	path := writeTempFile(t, "pic.jpg", "x")
@@ -471,10 +481,10 @@ func TestToggleSendAsWorksOnRussianLayout(t *testing.T) {
 
 func TestAttachPickerIsRendered(t *testing.T) {
 	m, _ := newRootOnChat(t, &mockTGClient{})
-	nm, _ := m.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	nm, _ := m.Update(tea.KeyPressMsg{Code: 'u', Text: "u"})
 	m = nm.(ui.RootModel)
 	if !m.FilePickerOpen() {
-		t.Fatal("file picker not open after 'f'")
+		t.Fatal("file picker not open after 'u'")
 	}
 	if !strings.Contains(m.View().Content, "filter") {
 		t.Fatalf("open file picker is not rendered in the view:\n%s", m.View().Content)
@@ -1162,6 +1172,50 @@ func TestRoot_Space_NoMenuWhenNoMessages(t *testing.T) {
 	m = newM.(ui.RootModel)
 
 	assert.False(t, m.ContextMenuOpen(), "menu should not open when no message is selected")
+}
+
+func TestRoot_ForwardKey_OpensPicker(t *testing.T) {
+	mock := &mockTGClient{}
+	m, st := newRootWithOpenChat(t, mock)
+	st.AppendMessage(store.Message{ID: 10, ChatID: 1, Text: "hello", Date: time.Now()})
+	newM, _ := m.Update(ui.ChatHistoryMsg{ChatID: 1, Messages: st.Messages(1)})
+	m = newM.(ui.RootModel)
+	require.False(t, m.SearchActive())
+
+	newM, _ = m.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	m = newM.(ui.RootModel)
+	assert.True(t, m.SearchActive(), "forward key should open the chat picker")
+}
+
+func TestRoot_ForwardToChat_CallsClient(t *testing.T) {
+	mock := &mockTGClient{}
+	m, _ := newRootWithOpenChat(t, mock)
+	target := store.Peer{ID: 999, Type: store.PeerUser, AccessHash: 7}
+
+	newM, cmd := m.Update(screens.ForwardToChatRequest{ToPeer: target, MsgID: 5})
+	m = newM.(ui.RootModel)
+	require.False(t, m.SearchActive(), "picker should close on confirm")
+	require.NotNil(t, cmd)
+	_ = cmd() // run the managed Cmd performing the RPC
+
+	assert.Equal(t, target, mock.lastForwardTo)
+	assert.Equal(t, []int{5}, mock.lastForwardIDs)
+	assert.Equal(t, int64(1), mock.lastForwardFrom.ID, "source peer is the open chat")
+}
+
+func TestRoot_ForwardRestricted_ShowsStatus(t *testing.T) {
+	mock := &mockTGClient{forwardErr: internaltg.ErrForwardRestricted}
+	m, _ := newRootWithOpenChat(t, mock)
+	target := store.Peer{ID: 999, Type: store.PeerUser}
+
+	_, cmd := m.Update(screens.ForwardToChatRequest{ToPeer: target, MsgID: 5})
+	require.NotNil(t, cmd)
+	done := cmd()
+	_, cmd2 := m.Update(done)
+	require.NotNil(t, cmd2)
+	se, ok := cmd2().(ui.StatusErrMsg)
+	require.True(t, ok, "restricted forward should surface a StatusErrMsg")
+	assert.Contains(t, se.Text, "restricted")
 }
 
 func TestRoot_ContextMenu_EscCloses(t *testing.T) {

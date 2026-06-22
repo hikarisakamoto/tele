@@ -307,6 +307,10 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleReactConfirmed(msg)
 	case components.DeleteMsgRequest:
 		return m.handleDeleteMsg(msg)
+	case screens.ForwardToChatRequest:
+		return m.handleForwardToChat(msg)
+	case forwardDoneMsg:
+		return m.handleForwardDone(msg)
 	case StatusErrMsg:
 		return m.handleStatusErr(msg)
 	case documentOpenDoneMsg:
@@ -348,6 +352,7 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		screens.CloseSearchMsg,
 		components.JumpToMsgRequest,
 		components.ReplyMsgRequest,
+		components.ForwardMsgRequest,
 		components.EditMsgRequest,
 		components.CloseContextMenuMsg,
 		components.ReactMsgRequest,

@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -25,16 +26,28 @@ type SearchModel struct {
 	query   string
 	all     []store.Chat
 	results []store.Chat
-	cursor  int
+	list    *components.ListView
 	width   int
 	height  int
 	keyMap  keys.KeyMap
+	// forwardMsgID > 0 puts the picker in forward mode: confirming a chat emits
+	// ForwardToChatRequest{ToPeer, MsgID} and rows show the unread count.
+	forwardMsgID int
 }
 
 func NewSearchModel(chats []store.Chat, width, height int, km keys.KeyMap) *SearchModel {
-	m := &SearchModel{all: chats, width: width, height: height, keyMap: km}
+	m := &SearchModel{all: chats, width: width, height: height, keyMap: km, list: components.NewListView(false)}
 	m.results = make([]store.Chat, len(chats))
 	copy(m.results, chats)
+	m.list.SetCount(len(m.results))
+	return m
+}
+
+// NewForwardPicker builds the chat picker in forward mode: confirming a chat
+// emits ForwardToChatRequest{ToPeer, MsgID} and rows show the unread count.
+func NewForwardPicker(chats []store.Chat, msgID int, width, height int, km keys.KeyMap) *SearchModel {
+	m := NewSearchModel(chats, width, height, km)
+	m.forwardMsgID = msgID
 	return m
 }
 
@@ -72,7 +85,7 @@ func arrowSym(key string) string {
 	}
 }
 
-func (m *SearchModel) Cursor() int           { return m.cursor }
+func (m *SearchModel) Cursor() int           { return m.list.Cursor() }
 func (m *SearchModel) Query() string         { return m.query }
 func (m *SearchModel) Results() []store.Chat { return m.results }
 
@@ -91,7 +104,12 @@ func (m *SearchModel) Update(msg tea.Msg) (*SearchModel, tea.Cmd) {
 		return m, func() tea.Msg { return CloseSearchMsg{} }
 	case tea.KeyEnter:
 		if len(m.results) > 0 {
-			chat := m.results[m.cursor]
+			chat := m.results[m.list.Cursor()]
+			if m.forwardMsgID != 0 {
+				msgID := m.forwardMsgID
+				peer := chat.Peer
+				return m, func() tea.Msg { return ForwardToChatRequest{ToPeer: peer, MsgID: msgID} }
+			}
 			return m, func() tea.Msg { return OpenChatMsg{Chat: chat} }
 		}
 		return m, nil
@@ -103,25 +121,17 @@ func (m *SearchModel) Update(msg tea.Msg) (*SearchModel, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyDown:
-		if m.cursor < len(m.results)-1 {
-			m.cursor++
-		}
+		m.list.MoveDown()
 		return m, nil
 	case tea.KeyUp:
-		if m.cursor > 0 {
-			m.cursor--
-		}
+		m.list.MoveUp()
 		return m, nil
 	default:
 		switch km.String() {
 		case "ctrl+j":
-			if m.cursor < len(m.results)-1 {
-				m.cursor++
-			}
+			m.list.MoveDown()
 		case "ctrl+k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
+			m.list.MoveUp()
 		default:
 			if km.Text != "" {
 				m.query += km.Text
@@ -141,9 +151,7 @@ func (m *SearchModel) filter() {
 		}
 	}
 	m.results = filtered
-	if m.cursor >= len(m.results) {
-		m.cursor = 0
-	}
+	m.list.SetCount(len(m.results))
 }
 
 func (m *SearchModel) View() string {
@@ -163,17 +171,18 @@ func (m *SearchModel) View() string {
 	divider := strings.Repeat("─", inner)
 
 	lines := []string{queryLine, divider}
-	for i, c := range m.results {
-		if i >= searchMaxResults {
-			break
-		}
+	rowFn := func(i int, selected bool) string {
+		c := m.results[i]
 		row := c.Title
-		if i == m.cursor {
-			lines = append(lines, searchActiveRow.Inline(true).Width(inner).MaxWidth(inner).Render(row))
-		} else {
-			lines = append(lines, searchNormalRow.Inline(true).Width(inner).MaxWidth(inner).Render(row))
+		if m.forwardMsgID != 0 && c.UnreadCount > 0 {
+			row = fmt.Sprintf("%s (%d)", c.Title, c.UnreadCount)
 		}
+		if selected {
+			return searchActiveRow.Inline(true).Width(inner).MaxWidth(inner).Render(row)
+		}
+		return searchNormalRow.Inline(true).Width(inner).MaxWidth(inner).Render(row)
 	}
+	lines = append(lines, m.list.Render(searchMaxResults, rowFn)...)
 	if len(m.results) == 0 {
 		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Width(inner).Render("no results"))
 	}
