@@ -169,7 +169,11 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		return m, nil
 
 	case PhotoReadyMsg:
-		m.imageCache.Add(msg.PhotoID, msg.Image)
+		// SetImage owns the cache write: it must measure whether the viewport was
+		// at the bottom *before* the image grows the bubble's height. Adding to the
+		// shared cache here first would defeat that snapshot (the height would have
+		// already grown), so the newest message could scroll out of view. SetImage
+		// writes to this same shared cache, so the image still lands in m.imageCache.
 		m.chat.SetImage(msg.PhotoID, msg.Image)
 		// Transmit is left to reconcile (after this update): the image is only
 		// placed on the terminal if it is currently visible. If this thumbnail
