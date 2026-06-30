@@ -22,6 +22,8 @@ docs/code-review*.md
 docs/*.sh
 docs/spec.md
 
+.DS_Store
+
 # Dev build
 /tele
 
