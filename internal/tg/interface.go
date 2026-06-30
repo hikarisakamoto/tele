@@ -13,6 +13,9 @@ import (
 // All callers (ui, app) depend on this interface, not on gotd directly.
 type Client interface {
 	GetDialogs(ctx context.Context) ([]store.Chat, error)
+	// SearchContacts queries Telegram (contacts.search) for users matching q,
+	// returning matches as store.Chat with valid peers. Phase 1: users only.
+	SearchContacts(ctx context.Context, q string, limit int) ([]store.Chat, error)
 	GetDialogFilters(ctx context.Context) ([]store.FolderFilter, error)
 	GetHistory(ctx context.Context, peer store.Peer, offsetID int, limit int) ([]store.Message, error)
 	// RefreshMessage re-fetches a single message to obtain fresh media file

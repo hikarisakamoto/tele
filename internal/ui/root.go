@@ -331,6 +331,8 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteMsg(msg)
 	case screens.ForwardToChatRequest:
 		return m.handleForwardToChat(msg)
+	case screens.SearchUsersRequest:
+		return m.handleSearchUsers(msg)
 	case forwardDoneMsg:
 		return m.handleForwardDone(msg)
 	case StatusErrMsg:
@@ -373,6 +375,7 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		screens.FolderSelectedMsg,
 		screens.TransitionToMainMsg,
 		screens.CloseSearchMsg,
+		screens.SearchUsersResult,
 		components.JumpToMsgRequest,
 		components.ReplyMsgRequest,
 		components.ForwardMsgRequest,
@@ -407,6 +410,13 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m.handleMainKey(msg)
+	}
+	// Internal SearchModel ticks (debounce/spinner) use unexported types, so they
+	// cannot be named in the switch above; forward them to the open overlay (#82).
+	if m.searchModel != nil && screens.IsSearchInternalMsg(msg) {
+		newSearch, cmd := m.searchModel.Update(msg)
+		m.searchModel = newSearch
+		return m, cmd
 	}
 	return m, nil
 }

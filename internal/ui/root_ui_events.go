@@ -122,6 +122,14 @@ func (m RootModel) updateUIMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		m.searchModel = nil
 		return m, nil
 
+	case screens.SearchUsersResult:
+		if m.searchModel != nil {
+			newSearch, cmd := m.searchModel.Update(msg)
+			m.searchModel = newSearch
+			return m, cmd
+		}
+		return m, nil
+
 	case components.JumpToMsgRequest:
 		m.contextMenu = nil
 		if !m.chat.ScrollToMessage(msg.MsgID) {

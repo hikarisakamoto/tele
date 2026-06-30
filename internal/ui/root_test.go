@@ -47,6 +47,9 @@ type mockTGClient struct {
 	lastForwardIDs        []int
 	lastSendText          string
 	sendCount             int
+	lastSearchQuery       string
+	searchResult          []store.Chat
+	searchErr             error
 }
 
 type savedDraft struct {
@@ -55,6 +58,10 @@ type savedDraft struct {
 }
 
 func (m *mockTGClient) GetDialogs(_ context.Context) ([]store.Chat, error) { return nil, nil }
+func (m *mockTGClient) SearchContacts(_ context.Context, q string, _ int) ([]store.Chat, error) {
+	m.lastSearchQuery = q
+	return m.searchResult, m.searchErr
+}
 func (m *mockTGClient) GetDialogFilters(_ context.Context) ([]store.FolderFilter, error) {
 	return nil, nil
 }
@@ -2029,4 +2036,28 @@ func TestRoot_EventEditMessage_HiddenEdit_DoesNotMarkEdited(t *testing.T) {
 	msgs := st.Messages(1)
 	require.Len(t, msgs, 1)
 	assert.Nil(t, msgs[0].EditDate, "hidden edit must not set the edited marker")
+}
+
+func TestRoot_SearchUsersRequestRunsRPCAndRoutesResult(t *testing.T) {
+	mock := &mockTGClient{searchResult: []store.Chat{
+		{ID: 99, Title: "Zoe", Peer: store.Peer{ID: 99, Type: store.PeerUser}},
+	}}
+	st := store.NewMemory()
+	m := ui.NewRootModel(mock, st, 20, false).WithScreen(ui.ScreenMain)
+
+	next, cmd := m.Update(screens.SearchUsersRequest{Query: "zo", Serial: 1})
+	m = next.(ui.RootModel)
+	require.NotNil(t, cmd, "SearchUsersRequest should produce a command")
+	var res screens.SearchUsersResult
+	var found bool
+	for _, mm := range drainMsgs(cmd()) {
+		if r, ok := mm.(screens.SearchUsersResult); ok {
+			res, found = r, true
+		}
+	}
+	require.True(t, found, "expected a SearchUsersResult")
+	assert.Equal(t, "zo", mock.lastSearchQuery)
+	require.Len(t, res.Chats, 1)
+	assert.Equal(t, int64(99), res.Chats[0].ID)
+	assert.Equal(t, 1, res.Serial)
 }

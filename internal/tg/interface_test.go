@@ -27,6 +27,10 @@ func (m *mockClient) GetDialogs(_ context.Context) ([]store.Chat, error) {
 	return m.dialogs, nil
 }
 
+func (m *mockClient) SearchContacts(_ context.Context, _ string, _ int) ([]store.Chat, error) {
+	return nil, nil
+}
+
 func (m *mockClient) GetDialogFilters(_ context.Context) ([]store.FolderFilter, error) {
 	return nil, nil
 }
