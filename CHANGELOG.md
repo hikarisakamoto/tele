@@ -11,6 +11,26 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- Beta release channel: install `tele-beta` from the Homebrew tap
+  (`brew install sorokin-vladimir/tap/tele-beta`) to run the latest merged
+  changes ahead of the weekly stable release. It ships as a separate binary with
+  its own config and state (`~/.config/tele-beta`), so it coexists with a stable
+  install; beta builds come from `vX.Y.Z-beta.N` prerelease tags and never appear
+  as the "latest" GitHub release
+
+### Changed
+
+- Composer redesign: the legacy `> ` prompt is replaced with a cleaner one-space
+  inset, and a send indicator (`➤`) now sits on the bottom border — dim while the
+  composer is empty, blue once there is text to send — alongside a
+  remaining-character counter that appears as you approach the 4096-character
+  limit and turns amber when close to it. The composer border turns green while
+  focused (insert mode), and an empty composer shows context-aware placeholder
+  text: a "Press <key> to write…" hint when unfocused, or reply/edit/attachment
+  prompts when focused
+
 ## [1.7.0] - 2026-06-30
 
 ### Added
