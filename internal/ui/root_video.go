@@ -59,12 +59,14 @@ func fmtClock(secs int) string {
 	return fmt.Sprintf("%d:%02d", secs/60, secs%60)
 }
 
-// videoModalBox sizes the modal image to fit ~90% of the terminal while keeping
-// the source aspect ratio. Unlike PhotoBox (tuned for inline chat photos with a
+// modalImageBox sizes a modal image to fit ~90% of the terminal while keeping the
+// source aspect ratio. Unlike PhotoBox (tuned for inline chat photos with a
 // 2/3-pane and long-side cap) it fills the modal area, and rows come from
-// PhotoRows so the transmitted frame exactly fills the cols×rows placement (no
-// empty band, correct portrait/landscape aspect).
-func (m RootModel) videoModalBox(imgW, imgH int) (int, int) {
+// PhotoRows so a transmitted frame exactly fills the cols×rows placement (no
+// empty band, correct portrait/landscape aspect). reservedRows subtracts extra
+// content rows from the height budget (e.g. the video progress bar) beyond the
+// two borders.
+func (m RootModel) modalImageBox(imgW, imgH, reservedRows int) (int, int) {
 	if imgW <= 0 || imgH <= 0 {
 		return 0, 0
 	}
@@ -73,7 +75,7 @@ func (m RootModel) videoModalBox(imgW, imgH int) (int, int) {
 	if maxCols < 1 {
 		maxCols = 1
 	}
-	maxRows := m.height*9/10 - 3 // top border + progress row + bottom border
+	maxRows := m.height*9/10 - 2 - reservedRows // top + bottom border + reserved
 	if maxRows < 1 {
 		maxRows = 1
 	}
@@ -91,6 +93,12 @@ func (m RootModel) videoModalBox(imgW, imgH int) (int, int) {
 		}
 	}
 	return cols, rows
+}
+
+// videoModalBox sizes the video modal, reserving one content row for the progress
+// bar under the image.
+func (m RootModel) videoModalBox(imgW, imgH int) (int, int) {
+	return m.modalImageBox(imgW, imgH, 1)
 }
 
 // downloadVideoFileCmd streams a video's bytes to a temp file for the in-app
@@ -346,18 +354,18 @@ func modalBorder(cornerL, mid, cornerR, leftLabel, rightLabel string, innerW int
 	return cornerL + leftLabel + strings.Repeat(mid, fill) + rightLabel + cornerR
 }
 
-// videoModalBoxLines renders the bordered modal: top border with the sender on it,
-// `rows` content rows (each = left border + the cols-wide placeholder grid row +
-// right border), and a bottom border with hints on the left and time on the right.
-// Each line is innerW+2 display cells wide.
-func videoModalBoxLines(content []string, innerW int, title, hints, timeStr string) []string {
+// modalBoxLines renders the bordered modal: top border with the title on it,
+// content rows (each = left border + content row + right border), and a bottom
+// border with hints on the left and rightLabel on the right. Each line is
+// innerW+2 display cells wide.
+func modalBoxLines(content []string, innerW int, title, hints, rightLabel string) []string {
 	bd := lipgloss.RoundedBorder()
 	lines := make([]string, 0, len(content)+2)
 	lines = append(lines, modalBorder(bd.TopLeft, bd.Top, bd.TopRight, label(title), "", innerW))
 	for _, c := range content {
 		lines = append(lines, bd.Left+c+bd.Right)
 	}
-	lines = append(lines, modalBorder(bd.BottomLeft, bd.Bottom, bd.BottomRight, label(hints), label(timeStr), innerW))
+	lines = append(lines, modalBorder(bd.BottomLeft, bd.Bottom, bd.BottomRight, label(hints), label(rightLabel), innerW))
 	return lines
 }
 
@@ -405,7 +413,7 @@ func (m RootModel) videoPlayerView(base string) string {
 
 	posSecs := vp.posFrames / videoFPS
 	timeStr := fmtClock(posSecs) + " / " + fmtClock(vp.durSecs)
-	box := videoModalBoxLines(content, vp.cols, vp.title, videoFooterHints(vp.playing), timeStr)
+	box := modalBoxLines(content, vp.cols, vp.title, videoFooterHints(vp.playing), timeStr)
 
 	boxW := vp.cols + 2
 	left := (m.width - boxW) / 2

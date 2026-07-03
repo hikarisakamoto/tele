@@ -104,6 +104,7 @@ type RootModel struct {
 	voicePlayer         *audio.Player
 	filePicker          *screens.FilePickerModel
 	videoPlayer         *videoPlayer
+	photoViewer         *photoViewer
 	pendingAttachment   *pendingAttachment
 	lastPickerDir       string
 	uploadCancels       map[int]context.CancelFunc

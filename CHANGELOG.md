@@ -13,6 +13,11 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ### Added
 
+- Photos now open in an in-app modal viewer with `o` (and the chat context menu),
+  matching videos. The modal shows the full-quality image (downloaded on demand),
+  the sender on the top border, and the message date and time on the bottom-right.
+  `O` still opens externally; `esc`/`q` close the modal. Renders via Kitty
+  graphics where available and half-block art otherwise (#150)
 - Beta release channel: install `tele-beta` from the Homebrew tap
   (`brew install sorokin-vladimir/tap/tele-beta`) to run the latest merged
   changes ahead of the weekly stable release. It ships as a separate binary with

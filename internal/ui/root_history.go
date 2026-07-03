@@ -191,17 +191,21 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 
 	case FullPhotoReadyMsg:
 		m.fullImageCache.Add(msg.PhotoID, msg.Image)
-		return m, nil
+		return m.handleFullPhotoReady(msg)
 
 	case components.OpenInViewerRequest:
-		// In-app modal. Photo modals are deferred, so a photo request is a no-op;
-		// videos open in the modal (external-player fallback without Kitty+ffmpeg).
+		// In-app modal. Videos open in the video modal (external-player fallback
+		// without Kitty+ffmpeg); photos open in the photo modal.
 		if ref, ok := m.chat.SelectedMessageVideo(); ok {
 			if useInAppVideoPlayer(m.imageMode, vmedia.HasFFmpeg()) {
 				dur, sender := m.selectedVideoInfo()
 				return m.openVideoModal(ref, m.chat.SelectedMessageID(), dur, sender)
 			}
 			return m.startDocumentOpen(ref, m.chat.SelectedMessageID(), m.selectedDownloadLabel())
+		}
+		if ref, ok := m.chat.SelectedMessagePhoto(); ok {
+			sender, date := m.selectedPhotoInfo()
+			return m.openPhotoModal(ref, m.chat.SelectedMessageID(), sender, date)
 		}
 		return m, nil
 

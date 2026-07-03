@@ -151,12 +151,13 @@ func mainItems(isOut bool, isReply bool, mediaKind store.MediaKind, hasMedia boo
 
 // mediaItems returns the media actions for a message of the given kind:
 // download is offered for everything downloadable; external open for photo and
-// video; the in-app modal for video; in-app playback for voice. Stickers and
-// non-file media (location, etc.) get no media actions.
+// video; the in-app modal for photo and video; in-app playback for voice.
+// Stickers and non-file media (location, etc.) get no media actions.
 func mediaItems(kind store.MediaKind) []menuItem {
 	switch kind {
 	case store.MediaPhoto:
 		return []menuItem{
+			{label: "Open in app", action: keys.ActionOpenInViewer},
 			{label: "Open externally", action: keys.ActionOpenExternal},
 			{label: "Download", action: keys.ActionDownloadFile},
 		}

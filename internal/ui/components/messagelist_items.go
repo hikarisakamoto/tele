@@ -37,6 +37,13 @@ func formatSepLabel(t time.Time) string {
 	return t.Format("January 2, 2006")
 }
 
+// FormatDateLabel is the exported form of formatSepLabel, for callers outside the
+// list (e.g. the photo modal's date label) that need the same "Today" / "Month
+// Day" / "Month Day, Year" rendering the date separators use.
+func FormatDateLabel(t time.Time) string {
+	return formatSepLabel(t)
+}
+
 func (ml *MessageList) buildItems(msgs []store.Message) []listItem {
 	if len(msgs) == 0 {
 		return nil

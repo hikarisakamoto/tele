@@ -204,6 +204,7 @@ func (m RootModel) updateUIMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		m.statusBar.TickDownloadSpinner()
 		m.updateGifLoadingSpinner()
 		m.updateVideoSpinner()
+		m.updatePhotoSpinner()
 		if m.spinnerShouldTick() {
 			return m, spinnerTickCmd()
 		}

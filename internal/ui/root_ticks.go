@@ -34,6 +34,8 @@ func (m *RootModel) spinnerShouldTick() bool {
 		return true
 	case m.videoPlayer != nil && m.videoPlayer.frame == nil:
 		return true
+	case m.photoViewer != nil && m.photoViewer.img == nil:
+		return true
 	}
 	return false
 }

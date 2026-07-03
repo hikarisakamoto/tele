@@ -127,6 +127,9 @@ func (m RootModel) View() tea.View {
 			// Kitty placeholders defeat lipgloss-based stamping).
 			content = m.videoPlayerView(dimBackground(content, m.hasDarkBackground))
 		}
+		if m.photoViewer != nil {
+			content = m.photoViewerView(dimBackground(content, m.hasDarkBackground))
+		}
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true

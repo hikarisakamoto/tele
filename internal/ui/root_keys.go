@@ -33,6 +33,11 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.statusBar.SetLastKey(keyStr)
 	}
 
+	// While the photo modal is open it owns all keys.
+	if m.photoViewer != nil {
+		return m.handlePhotoModalKey(keyStr)
+	}
+
 	// While the video modal is open it owns all keys.
 	if m.videoPlayer != nil {
 		return m.handleVideoPlayerKey(keyStr)
@@ -170,9 +175,9 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return result, tea.Batch(draftFlush, cmd)
 	}
 
-	// ActionOpenInViewer (o) opens an in-app modal. Photo modals are not built
-	// yet (deferred), so a photo is a no-op here; videos open in the modal (with
-	// the external-player fallback when Kitty+ffmpeg are unavailable).
+	// ActionOpenInViewer (o) opens an in-app modal: photos in the photo modal,
+	// videos in the video modal (with the external-player fallback when
+	// Kitty+ffmpeg are unavailable).
 	if action == keys.ActionOpenInViewer && m.focus == FocusChat {
 		if ref, ok := m.chat.SelectedMessageVideo(); ok {
 			if useInAppVideoPlayer(m.imageMode, vmedia.HasFFmpeg()) {
@@ -180,6 +185,10 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m.openVideoModal(ref, m.chat.SelectedMessageID(), dur, sender)
 			}
 			return m.startDocumentOpen(ref, m.chat.SelectedMessageID(), m.selectedDownloadLabel())
+		}
+		if ref, ok := m.chat.SelectedMessagePhoto(); ok {
+			sender, date := m.selectedPhotoInfo()
+			return m.openPhotoModal(ref, m.chat.SelectedMessageID(), sender, date)
 		}
 		return m, nil
 	}

@@ -489,13 +489,12 @@ func TestContextMenu_IncomingDeleteSub_EscReturnsToMain(t *testing.T) {
 
 // --- media actions per kind ---
 
-func TestNewContextMenu_PhotoMessage_ShowsExternalAndDownload(t *testing.T) {
+func TestNewContextMenu_PhotoMessage_ShowsAllThreeActions(t *testing.T) {
 	cm := components.NewContextMenu(1, false, 0, store.MediaPhoto, true, defaultKM())
 	view := strip(cm.View())
+	assert.Contains(t, view, "Open in app")
 	assert.Contains(t, view, "Open externally")
 	assert.Contains(t, view, "Download")
-	// The in-app photo modal is not built yet, so no "Open in app" entry.
-	assert.NotContains(t, view, "Open in app")
 }
 
 func TestNewContextMenu_NoMedia_HidesMediaActions(t *testing.T) {
@@ -529,6 +528,15 @@ func TestContextMenu_Video_OpenInApp_EmitsOpenInViewerRequest(t *testing.T) {
 	require.NotNil(t, cmd)
 	_, ok := cmd().(components.OpenInViewerRequest)
 	require.True(t, ok, "o must emit OpenInViewerRequest (in-app modal)")
+}
+
+func TestContextMenu_Photo_OpenInApp_EmitsOpenInViewerRequest(t *testing.T) {
+	cm := components.NewContextMenu(7, false, 0, store.MediaPhoto, true, defaultKM())
+	newCM, cmd := cm.Update(pressO())
+	assert.Nil(t, newCM)
+	require.NotNil(t, cmd)
+	_, ok := cmd().(components.OpenInViewerRequest)
+	require.True(t, ok, "o must emit OpenInViewerRequest for a photo (in-app modal)")
 }
 
 func TestNewContextMenu_VoiceMessage_ShowsPlayAndDownload(t *testing.T) {
