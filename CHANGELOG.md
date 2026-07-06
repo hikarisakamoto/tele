@@ -11,6 +11,30 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- Copy a message's text to the clipboard: press `y` on the focused bubble, or
+  choose "Copy text" from its context menu. The action is offered only when the
+  message actually has text — media-only messages (a photo or sticker with no
+  caption) are skipped — and a status-bar "Copied" confirms. Works under
+  non-Latin keyboard layouts (#166)
+- Open links and media from the focused message with `o`. A message can expose
+  several openable targets (its photo or video plus any links); a single target
+  opens directly, while two or more present a picker that lists them (numbered,
+  navigate with `j/k` or pick by digit). Links open in the default browser, and
+  plain URLs and emails are now also wrapped as OSC 8 terminal hyperlinks so they
+  are click-through where the terminal supports it. Also reachable from the
+  context-menu "Open" entry (#165)
+
+### Changed
+
+- Context-menu clarity: entries now name their object ("Copy text",
+  "save photo (download)", "open photo" vs "Open photo externally"); a single
+  unified "Open" entry replaces the previous separate in-app open; and each
+  item's hotkey letter is accent-highlighted in place like the status-bar hints,
+  shown in the key's exact case so it reads as the actual keystroke (a lowercase
+  key lowercases the letter, a Shift key keeps its capital)
+
 ## [1.8.0] - 2026-07-06
 
 ### Added
