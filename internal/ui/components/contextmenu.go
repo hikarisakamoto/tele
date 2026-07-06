@@ -59,6 +59,10 @@ type PlayVoiceRequest struct{}
 // file message.
 type DownloadFileRequest struct{}
 
+// CopyMsgRequest is emitted when the user selects "Copy" for a message that has
+// copyable text. The root copies the currently selected message's text.
+type CopyMsgRequest struct{}
+
 type menuState int
 
 const (
@@ -97,23 +101,26 @@ type ContextMenu struct {
 	replyToMsgID int
 	mediaKind    store.MediaKind
 	hasMedia     bool
+	hasText      bool
 	keyMap       keys.KeyMap
 }
 
 // NewContextMenu builds the chat message context menu. mediaKind is the kind of
 // the selected message's media and hasMedia reports whether the message carries
 // any media (when false, mediaKind is ignored and no media actions are shown).
-func NewContextMenu(msgID int, isOut bool, replyToMsgID int, mediaKind store.MediaKind, hasMedia bool, km keys.KeyMap) *ContextMenu {
+// hasText reports whether the message has copyable text (drives the Copy entry).
+func NewContextMenu(msgID int, isOut bool, replyToMsgID int, mediaKind store.MediaKind, hasMedia bool, hasText bool, km keys.KeyMap) *ContextMenu {
 	cm := &ContextMenu{
 		msgID:        msgID,
 		isOut:        isOut,
 		replyToMsgID: replyToMsgID,
 		mediaKind:    mediaKind,
 		hasMedia:     hasMedia,
+		hasText:      hasText,
 		keyMap:       km,
 		list:         NewListView(true),
 	}
-	cm.setItems(mainItems(isOut, replyToMsgID != 0, mediaKind, hasMedia))
+	cm.setItems(mainItems(isOut, replyToMsgID != 0, mediaKind, hasMedia, hasText))
 	return cm
 }
 
@@ -129,7 +136,7 @@ func (cm *ContextMenu) setItems(items []menuItem) {
 
 func (cm *ContextMenu) Cursor() int { return cm.list.Cursor() }
 
-func mainItems(isOut bool, isReply bool, mediaKind store.MediaKind, hasMedia bool) []menuItem {
+func mainItems(isOut bool, isReply bool, mediaKind store.MediaKind, hasMedia bool, hasText bool) []menuItem {
 	var items []menuItem
 	if isReply {
 		items = append(items, menuItem{label: "Jump to original", action: keys.ActionJumpToOriginal})
@@ -139,6 +146,9 @@ func mainItems(isOut bool, isReply bool, mediaKind store.MediaKind, hasMedia boo
 		menuItem{label: "React", action: keys.ActionReact},
 		menuItem{label: "Forward", action: keys.ActionForward},
 	)
+	if hasText {
+		items = append(items, menuItem{label: "Copy", action: keys.ActionCopyMessage})
+	}
 	if isOut {
 		items = append(items, menuItem{label: "Edit", action: keys.ActionEdit})
 	}
@@ -219,7 +229,7 @@ func (cm *ContextMenu) Update(msg tea.Msg) (*ContextMenu, tea.Cmd) {
 	case keys.ActionCancel:
 		if cm.state == stateDeleteSub {
 			cm.state = stateMain
-			cm.setItems(mainItems(cm.isOut, cm.replyToMsgID != 0, cm.mediaKind, cm.hasMedia))
+			cm.setItems(mainItems(cm.isOut, cm.replyToMsgID != 0, cm.mediaKind, cm.hasMedia, cm.hasText))
 			return cm, nil
 		}
 		return nil, func() tea.Msg { return CloseContextMenuMsg{} }
@@ -276,6 +286,8 @@ func (cm *ContextMenu) execute() (*ContextMenu, tea.Cmd) {
 		return nil, func() tea.Msg { return OpenExternalRequest{} }
 	case keys.ActionDownloadFile:
 		return nil, func() tea.Msg { return DownloadFileRequest{} }
+	case keys.ActionCopyMessage:
+		return nil, func() tea.Msg { return CopyMsgRequest{} }
 	case keys.ActionPlayVoice:
 		return nil, func() tea.Msg { return PlayVoiceRequest{} }
 	}

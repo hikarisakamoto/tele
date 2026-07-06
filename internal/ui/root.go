@@ -345,6 +345,16 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleDocumentOpenDone(msg)
 	case fileDownloadDoneMsg:
 		return m.handleFileDownloadDone(msg)
+	case messageCopiedMsg:
+		if msg.ok {
+			m.statusBar.SetStatus("Copied")
+		}
+		return m, nil
+	case components.CopyMsgRequest:
+		if text, ok := m.chat.SelectedMessageText(); ok {
+			return m, copyToClipboardCmd(text)
+		}
+		return m, nil
 	case ClearStatusErrMsg:
 		m.statusBar.ClearError(msg.Serial)
 		return m, nil

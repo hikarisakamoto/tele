@@ -94,6 +94,7 @@ func DefaultKeyMap() KeyMap {
 			"u":      ActionAttach,
 			"x":      ActionCancelUpload,
 			"s":      ActionDownloadFile,
+			"y":      ActionCopyMessage,
 		},
 		ContextComposer: {
 			"enter":  ActionConfirm,
@@ -118,6 +119,7 @@ func DefaultKeyMap() KeyMap {
 			"O":     ActionOpenExternal,
 			"p":     ActionPlayVoice,
 			"s":     ActionDownloadFile,
+			"y":     ActionCopyMessage,
 		},
 		ContextDeleteSubMenu: {
 			"j":     ActionDown,

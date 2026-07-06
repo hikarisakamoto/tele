@@ -18,6 +18,15 @@ func (ml *MessageList) SelectedMessageIsOut() bool {
 	return false
 }
 
+// SelectedMessageText returns the plain text of the selected message and whether
+// it carries any non-empty text. Media-only messages (no caption) report false.
+func (ml *MessageList) SelectedMessageText() (string, bool) {
+	if msg := ml.computeSelectedMsg(); msg != nil && msg.Text != "" {
+		return msg.Text, true
+	}
+	return "", false
+}
+
 func (ml *MessageList) SelectedMessageReplyToMsgID() int {
 	if msg := ml.computeSelectedMsg(); msg != nil {
 		return msg.ReplyToMsgID

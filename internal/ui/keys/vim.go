@@ -50,6 +50,7 @@ const (
 	ActionToggleSendAs    Action = "toggle_send_as"
 	ActionCancelUpload    Action = "cancel_upload"
 	ActionDownloadFile    Action = "download_file"
+	ActionCopyMessage     Action = "copy_message"
 )
 
 type VimState struct {

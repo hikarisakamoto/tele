@@ -34,12 +34,12 @@ func pressSpace() tea.KeyPressMsg { return keyMsg(' ') }
 // --- item display ---
 
 func TestContextMenu_HasForwardItem(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	assert.Contains(t, cm.View(), "Forward")
 }
 
 func TestContextMenu_F_EmitsForwardRequest(t *testing.T) {
-	cm := components.NewContextMenu(7, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(7, false, 0, 0, false, false, defaultKM())
 	_, cmd := cm.Update(keyMsg('f'))
 	require.NotNil(t, cmd)
 	req, ok := cmd().(components.ForwardMsgRequest)
@@ -48,7 +48,7 @@ func TestContextMenu_F_EmitsForwardRequest(t *testing.T) {
 }
 
 func TestNewContextMenu_IncomingItems(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	view := cm.View()
 	assert.Contains(t, view, "Reply")
 	assert.Contains(t, view, "React")
@@ -57,7 +57,7 @@ func TestNewContextMenu_IncomingItems(t *testing.T) {
 }
 
 func TestNewContextMenu_OutgoingItems(t *testing.T) {
-	cm := components.NewContextMenu(1, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, true, 0, 0, false, false, defaultKM())
 	view := cm.View()
 	assert.Contains(t, view, "Reply")
 	assert.Contains(t, view, "React")
@@ -66,7 +66,7 @@ func TestNewContextMenu_OutgoingItems(t *testing.T) {
 }
 
 func TestNewContextMenu_ShowsKeyBindings(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	view := cm.View()
 	assert.Contains(t, view, "r -> Reply")
 	assert.Contains(t, view, "t -> React")
@@ -74,7 +74,7 @@ func TestNewContextMenu_ShowsKeyBindings(t *testing.T) {
 }
 
 func TestNewContextMenu_ShowsNavHintInBottomBorder(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	view := cm.View()
 	// status-bar hint style: "j/k move · select ↵ · esc close"
 	assert.Contains(t, view, "j/k")
@@ -85,26 +85,26 @@ func TestNewContextMenu_ShowsNavHintInBottomBorder(t *testing.T) {
 // --- cursor navigation ---
 
 func TestNewContextMenu_CursorStartsAtZero(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	assert.Equal(t, 0, cm.Cursor())
 }
 
 func TestContextMenu_J_MovesCursorDown(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
 	assert.Equal(t, 1, cm.Cursor())
 }
 
 func TestContextMenu_DownArrow_MovesCursorDown(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressDown())
 	require.NotNil(t, cm)
 	assert.Equal(t, 1, cm.Cursor())
 }
 
 func TestContextMenu_K_MovesCursorUp(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressK())
@@ -113,7 +113,7 @@ func TestContextMenu_K_MovesCursorUp(t *testing.T) {
 }
 
 func TestContextMenu_UpArrow_MovesCursorUp(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressDown())
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressUp())
@@ -122,7 +122,7 @@ func TestContextMenu_UpArrow_MovesCursorUp(t *testing.T) {
 }
 
 func TestContextMenu_WrapAround_K_FromFirst_GoesToLast(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	// incoming: Reply(0), React(1), Forward(2), Delete(3)
 	cm, _ = cm.Update(pressK())
 	require.NotNil(t, cm)
@@ -132,7 +132,7 @@ func TestContextMenu_WrapAround_K_FromFirst_GoesToLast(t *testing.T) {
 // --- close actions ---
 
 func TestContextMenu_EscFromMain_Closes(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressEsc())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -140,7 +140,7 @@ func TestContextMenu_EscFromMain_Closes(t *testing.T) {
 }
 
 func TestContextMenu_Space_Closes(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressSpace())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -150,7 +150,7 @@ func TestContextMenu_Space_Closes(t *testing.T) {
 // --- enter on items ---
 
 func TestContextMenu_Reply_EmitsReplyMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	// cursor starts at 0 (Reply item)
 	newCM, cmd := cm.Update(pressEnter())
 	assert.Nil(t, newCM)
@@ -161,7 +161,7 @@ func TestContextMenu_Reply_EmitsReplyMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_React_EmitsReactMsgRequestViaEnter(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
 	newCM, cmd := cm.Update(pressEnter())
@@ -173,7 +173,7 @@ func TestContextMenu_React_EmitsReactMsgRequestViaEnter(t *testing.T) {
 }
 
 func TestContextMenu_Edit_EmitsEditMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, true, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressJ()) // React
 	require.NotNil(t, cm)
 	cm, _ = cm.Update(pressJ()) // Forward
@@ -189,7 +189,7 @@ func TestContextMenu_Edit_EmitsEditMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_DirectKey_E_EmitsEditMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, true, 0, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressE())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -201,7 +201,7 @@ func TestContextMenu_DirectKey_E_EmitsEditMsgRequest(t *testing.T) {
 // --- direct key dispatch ---
 
 func TestContextMenu_DirectKey_R_EmitsReplyMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	cm, _ = cm.Update(pressJ()) // move cursor away
 	require.NotNil(t, cm)
 	newCM, cmd := cm.Update(pressR())
@@ -213,7 +213,7 @@ func TestContextMenu_DirectKey_R_EmitsReplyMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_Reply_OutgoingMessage_EmitsReplyMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(99, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(99, true, 0, 0, false, false, defaultKM())
 	// outgoing: Reply(0) React(1) Forward(2) Edit(3) Delete(4); cursor at 0
 	newCM, cmd := cm.Update(pressEnter())
 	assert.Nil(t, newCM)
@@ -224,7 +224,7 @@ func TestContextMenu_Reply_OutgoingMessage_EmitsReplyMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_DirectKey_D_IncomingShowsSubMenu(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressD())
 	require.NotNil(t, newCM, "incoming delete opens sub-menu")
 	assert.Nil(t, cmd)
@@ -233,7 +233,7 @@ func TestContextMenu_DirectKey_D_IncomingShowsSubMenu(t *testing.T) {
 }
 
 func TestContextMenu_DirectKey_D_OutgoingShowsSubMenu(t *testing.T) {
-	cm := components.NewContextMenu(42, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, true, 0, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressD())
 	require.NotNil(t, newCM, "outgoing delete opens sub-menu")
 	assert.Nil(t, cmd)
@@ -243,7 +243,7 @@ func TestContextMenu_DirectKey_D_OutgoingShowsSubMenu(t *testing.T) {
 // --- delete (enter navigation) ---
 
 func TestContextMenu_DeleteIncoming_ShowsSubMenu(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	// incoming: Reply(0), React(1), Forward(2), Delete(3)
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
@@ -259,7 +259,7 @@ func TestContextMenu_DeleteIncoming_ShowsSubMenu(t *testing.T) {
 }
 
 func TestContextMenu_DeleteOutgoing_ShowsSubPrompt(t *testing.T) {
-	cm := components.NewContextMenu(42, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, true, 0, 0, false, false, defaultKM())
 	// outgoing: Reply(0), React(1), Forward(2), Edit(3), Delete(4)
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
@@ -361,7 +361,7 @@ func TestContextMenu_EscFromSubPrompt_ReturnsToMain(t *testing.T) {
 }
 
 func TestContextMenu_View_ReturnsNonEmpty(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	assert.NotEmpty(t, cm.View())
 }
 
@@ -369,19 +369,19 @@ func pressG() tea.KeyPressMsg { return keyMsg('g') }
 func pressT() tea.KeyPressMsg { return keyMsg('t') }
 
 func TestNewContextMenu_IsReply_ShowsJumpToOriginal(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 42, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 42, 0, false, false, defaultKM())
 	view := cm.View()
 	assert.Contains(t, view, "Jump to original")
 }
 
 func TestNewContextMenu_NotReply_NoJumpToOriginal(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	view := cm.View()
 	assert.NotContains(t, view, "Jump to original")
 }
 
 func TestContextMenu_React_EmitsReactMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	// items: Reply, React — cursor on React after one J
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
@@ -394,7 +394,7 @@ func TestContextMenu_React_EmitsReactMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_DirectKey_T_EmitsReactMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressT())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -404,7 +404,7 @@ func TestContextMenu_DirectKey_T_EmitsReactMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_JumpToOriginal_EmitsJumpToMsgRequest(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 42, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 42, 0, false, false, defaultKM())
 	// Jump to original is item 0 (prepended), cursor starts at 0.
 	newCM, cmd := cm.Update(pressEnter())
 	assert.Nil(t, newCM)
@@ -415,7 +415,7 @@ func TestContextMenu_JumpToOriginal_EmitsJumpToMsgRequest(t *testing.T) {
 }
 
 func TestContextMenu_DirectKey_G_JumpsToOriginal(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 42, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 42, 0, false, false, defaultKM())
 	newCM, cmd := cm.Update(pressG())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -426,7 +426,7 @@ func TestContextMenu_DirectKey_G_JumpsToOriginal(t *testing.T) {
 
 func navigateToDeleteSubPrompt(t *testing.T) *components.ContextMenu {
 	t.Helper()
-	cm := components.NewContextMenu(99, true, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(99, true, 0, 0, false, false, defaultKM())
 	// outgoing: Reply(0) React(1) Forward(2) Edit(3) Delete(4)
 	cm, _ = cm.Update(pressJ()) // React
 	require.NotNil(t, cm)
@@ -443,7 +443,7 @@ func navigateToDeleteSubPrompt(t *testing.T) *components.ContextMenu {
 
 func navigateToIncomingDeleteSubPrompt(t *testing.T) *components.ContextMenu {
 	t.Helper()
-	cm := components.NewContextMenu(77, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(77, false, 0, 0, false, false, defaultKM())
 	// incoming: Reply(0), React(1), Forward(2), Delete(3)
 	cm, _ = cm.Update(pressJ())
 	require.NotNil(t, cm)
@@ -490,7 +490,7 @@ func TestContextMenu_IncomingDeleteSub_EscReturnsToMain(t *testing.T) {
 // --- media actions per kind ---
 
 func TestNewContextMenu_PhotoMessage_ShowsAllThreeActions(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaPhoto, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaPhoto, true, false, defaultKM())
 	view := strip(cm.View())
 	assert.Contains(t, view, "Open in app")
 	assert.Contains(t, view, "Open externally")
@@ -498,14 +498,14 @@ func TestNewContextMenu_PhotoMessage_ShowsAllThreeActions(t *testing.T) {
 }
 
 func TestNewContextMenu_NoMedia_HidesMediaActions(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, 0, false, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
 	view := strip(cm.View())
 	assert.NotContains(t, view, "Open externally")
 	assert.NotContains(t, view, "Download")
 }
 
 func TestNewContextMenu_VideoMessage_ShowsAllThreeActions(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaVideo, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaVideo, true, false, defaultKM())
 	view := strip(cm.View())
 	assert.Contains(t, view, "Open in app")
 	assert.Contains(t, view, "Open externally")
@@ -513,7 +513,7 @@ func TestNewContextMenu_VideoMessage_ShowsAllThreeActions(t *testing.T) {
 }
 
 func TestContextMenu_Photo_OpenExternal_EmitsOpenExternalRequest(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaPhoto, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaPhoto, true, false, defaultKM())
 	newCM, cmd := cm.Update(keyMsg('O'))
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -522,7 +522,7 @@ func TestContextMenu_Photo_OpenExternal_EmitsOpenExternalRequest(t *testing.T) {
 }
 
 func TestContextMenu_Video_OpenInApp_EmitsOpenInViewerRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, store.MediaVideo, true, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, store.MediaVideo, true, false, defaultKM())
 	newCM, cmd := cm.Update(pressO())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -531,7 +531,7 @@ func TestContextMenu_Video_OpenInApp_EmitsOpenInViewerRequest(t *testing.T) {
 }
 
 func TestContextMenu_Photo_OpenInApp_EmitsOpenInViewerRequest(t *testing.T) {
-	cm := components.NewContextMenu(7, false, 0, store.MediaPhoto, true, defaultKM())
+	cm := components.NewContextMenu(7, false, 0, store.MediaPhoto, true, false, defaultKM())
 	newCM, cmd := cm.Update(pressO())
 	assert.Nil(t, newCM)
 	require.NotNil(t, cmd)
@@ -540,33 +540,53 @@ func TestContextMenu_Photo_OpenInApp_EmitsOpenInViewerRequest(t *testing.T) {
 }
 
 func TestNewContextMenu_VoiceMessage_ShowsPlayAndDownload(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaVoice, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaVoice, true, false, defaultKM())
 	view := strip(cm.View())
 	assert.Contains(t, view, "Play")
 	assert.Contains(t, view, "Download")
 }
 
 func TestNewContextMenu_GIFMessage_ShowsDownloadOnly(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaGIF, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaGIF, true, false, defaultKM())
 	view := strip(cm.View())
 	assert.Contains(t, view, "Download")
 	assert.NotContains(t, view, "Open externally")
 }
 
 func TestNewContextMenu_StickerMessage_ShowsNoMediaActions(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaSticker, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaSticker, true, false, defaultKM())
 	view := strip(cm.View())
 	assert.NotContains(t, view, "Download")
 	assert.NotContains(t, view, "Open externally")
 }
 
+func TestNewContextMenu_HasText_ShowsCopy(t *testing.T) {
+	cm := components.NewContextMenu(1, false, 0, 0, false, true, defaultKM())
+	assert.Contains(t, strip(cm.View()), "Copy")
+}
+
+func TestNewContextMenu_NoText_HidesCopy(t *testing.T) {
+	cm := components.NewContextMenu(1, false, 0, 0, false, false, defaultKM())
+	assert.NotContains(t, strip(cm.View()), "Copy")
+}
+
+func TestContextMenu_Copy_EmitsCopyMsgRequest(t *testing.T) {
+	cm := components.NewContextMenu(42, false, 0, 0, false, true, defaultKM())
+	// 'y' is the Copy binding in the context menu.
+	newCM, cmd := cm.Update(keyMsg('y'))
+	assert.Nil(t, newCM)
+	require.NotNil(t, cmd)
+	_, ok := cmd().(components.CopyMsgRequest)
+	assert.True(t, ok, "selecting Copy must emit CopyMsgRequest")
+}
+
 func TestNewContextMenu_FileShowsDownload(t *testing.T) {
-	cm := components.NewContextMenu(1, false, 0, store.MediaFile, true, defaultKM())
+	cm := components.NewContextMenu(1, false, 0, store.MediaFile, true, false, defaultKM())
 	assert.Contains(t, strip(cm.View()), "Download")
 }
 
 func TestContextMenu_Download_EmitsDownloadFileRequest(t *testing.T) {
-	cm := components.NewContextMenu(42, false, 0, store.MediaFile, true, defaultKM())
+	cm := components.NewContextMenu(42, false, 0, store.MediaFile, true, false, defaultKM())
 	// 's' is the Download binding in the context menu.
 	_, cmd := cm.Update(keyMsg('s'))
 	require.NotNil(t, cmd)

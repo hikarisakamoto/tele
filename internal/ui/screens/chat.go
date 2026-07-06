@@ -208,11 +208,14 @@ func (m *ChatModel) SetInboxReadMaxID(id int)     { m.msgList.SetInboxReadMaxID(
 func (m *ChatModel) ScrollToFirstUnread(readMaxID int) bool {
 	return m.msgList.ScrollToFirstUnread(readMaxID)
 }
-func (m *ChatModel) VisibleReadMaxID() int            { return m.msgList.VisibleReadMaxID() }
-func (m *ChatModel) ComposerFocused() bool            { return m.composerFocused }
-func (m *ChatModel) ComposerValue() string            { return m.composer.Value() }
-func (m *ChatModel) ComposerHeight() int              { return m.composer.VisualHeight() }
-func (m *ChatModel) SelectedMessageID() int           { return m.msgList.SelectedMessageID() }
+func (m *ChatModel) VisibleReadMaxID() int  { return m.msgList.VisibleReadMaxID() }
+func (m *ChatModel) ComposerFocused() bool  { return m.composerFocused }
+func (m *ChatModel) ComposerValue() string  { return m.composer.Value() }
+func (m *ChatModel) ComposerHeight() int    { return m.composer.VisualHeight() }
+func (m *ChatModel) SelectedMessageID() int { return m.msgList.SelectedMessageID() }
+func (m *ChatModel) SelectedMessageText() (string, bool) {
+	return m.msgList.SelectedMessageText()
+}
 func (m *ChatModel) SelectedMessageIsOut() bool       { return m.msgList.SelectedMessageIsOut() }
 func (m *ChatModel) SelectedMessageReplyToMsgID() int { return m.msgList.SelectedMessageReplyToMsgID() }
 func (m *ChatModel) SelectedMessagePhotoID() int64    { return m.msgList.SelectedMessagePhotoID() }

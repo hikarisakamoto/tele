@@ -209,6 +209,15 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleDownloadSelected()
 	}
 
+	// ActionCopyMessage (y) copies the focused message's text to the clipboard.
+	// Media-only messages (no caption) carry no text and are a no-op.
+	if action == keys.ActionCopyMessage && m.focus == FocusChat {
+		if text, ok := m.chat.SelectedMessageText(); ok {
+			return m, copyToClipboardCmd(text)
+		}
+		return m, nil
+	}
+
 	if action == keys.ActionPlayVoice && m.focus == FocusChat {
 		return m.handlePlayVoice()
 	}
@@ -220,7 +229,8 @@ func (m RootModel) handleMainKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if msgID != 0 {
 				replyToMsgID := m.chat.SelectedMessageReplyToMsgID()
 				mediaKind, hasMedia := m.chat.SelectedMessageMediaKind()
-				m.contextMenu = components.NewContextMenu(msgID, isOut, replyToMsgID, mediaKind, hasMedia, m.keyMap)
+				_, hasText := m.chat.SelectedMessageText()
+				m.contextMenu = components.NewContextMenu(msgID, isOut, replyToMsgID, mediaKind, hasMedia, hasText, m.keyMap)
 			}
 		}
 		return m, nil

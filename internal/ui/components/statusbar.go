@@ -200,6 +200,7 @@ func (sb *StatusBar) hints() string {
 		write := sb.keyMap.KeyFor(keys.ContextChat, keys.ActionInsert)
 		attach := sb.keyMap.KeyFor(keys.ContextChat, keys.ActionAttach)
 		open := sb.keyMap.KeyFor(keys.ContextChat, keys.ActionOpenInViewer)
+		copyKey := sb.keyMap.KeyFor(keys.ContextChat, keys.ActionCopyMessage)
 		quit := sb.keyMap.KeyFor(keys.ContextGlobal, keys.ActionQuit)
 		return joinHints(
 			hintNav(down, up, "scroll", a),
@@ -207,6 +208,7 @@ func (sb *StatusBar) hints() string {
 			hintKey(write, "write", a),
 			hintKey(attach, "upload", a),
 			hintKey(open, "open", a),
+			hintKey(copyKey, "copy", a),
 			hintKey(quit, "quit", a),
 		)
 	case sb.activePane == "chatlist":

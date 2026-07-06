@@ -89,3 +89,26 @@ func readClipboardCmd() tea.Cmd {
 		return tea.PasteMsg{Content: str}
 	}
 }
+
+// clipboardWrite writes text to the system clipboard. It is a variable so tests
+// can stub out the external clipboard.
+var clipboardWrite = clipboard.WriteAll
+
+// messageCopiedMsg reports that a message's text was copied to the clipboard,
+// so the status bar can confirm it.
+type messageCopiedMsg struct{ ok bool }
+
+// copyToClipboardCmd writes text to the clipboard off the update loop.
+func copyToClipboardCmd(text string) tea.Cmd {
+	return func() tea.Msg {
+		return messageCopiedMsg{ok: clipboardWrite(text) == nil}
+	}
+}
+
+// SetClipboardWriterForTest swaps the clipboard writer and returns a restore
+// func, so tests can capture copied text without touching the real clipboard.
+func SetClipboardWriterForTest(fn func(string) error) func() {
+	prev := clipboardWrite
+	clipboardWrite = fn
+	return func() { clipboardWrite = prev }
+}

@@ -43,6 +43,15 @@ func TestStatusBar_ChatHintsIncludeUpload(t *testing.T) {
 	assert.Contains(t, strip(sb.View()), "upload")
 }
 
+func TestStatusBar_ChatHintsIncludeCopy(t *testing.T) {
+	km := keys.DefaultKeyMap()
+	sb := components.NewStatusBar(160)
+	sb.SetKeyMap(km)
+	sb.SetActivePane("chat")
+	sb.SetMode(keys.ModeNormal)
+	assert.Contains(t, strip(sb.View()), "copy")
+}
+
 func TestStatusBar_PickerHints(t *testing.T) {
 	km := keys.DefaultKeyMap()
 	sb := components.NewStatusBar(160)
