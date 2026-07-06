@@ -11,6 +11,8 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-06
+
 ### Added
 
 - Basic mouse support on the main screen: click a chat in the list to select and
