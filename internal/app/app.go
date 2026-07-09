@@ -51,29 +51,50 @@ const notifyFreshnessWindow = 10 * time.Second
 
 // shouldNotify decides whether evt warrants a desktop notification. Pure and
 // clock-injected so the freshness rule is unit-testable. now is the reference
-// time the message age is measured against (time.Now() in production).
+// time the event age is measured against (time.Now() in production).
 func shouldNotify(st store.Store, evt store.Event, currentChatID int64, now time.Time) bool {
-	if evt.Kind != store.EventNewMessage {
+	switch evt.Kind {
+	case store.EventNewMessage:
+		if evt.Message.IsOut {
+			return false
+		}
+		return notifiable(st, evt.Message.ChatID, currentChatID, evt.Message.Date, now)
+	case store.EventReactionsUpdate:
+		// A peer reacted to one of our messages in a group/channel.
+		if !evt.ReactionsUnread {
+			return false
+		}
+		return notifiable(st, evt.ChatID, currentChatID, evt.ReactionDate, now)
+	case store.EventEditMessage:
+		// 1:1 peer reactions arrive as a hidden edit; a real text edit carries no
+		// unread reactions and must not notify.
+		if !evt.Message.HasUnreadReactions {
+			return false
+		}
+		return notifiable(st, evt.Message.ChatID, currentChatID, evt.ReactionDate, now)
+	}
+	return false
+}
+
+// notifiable applies the gating shared by message and reaction notifications:
+// the chat must exist, not be the open one, not be muted/archived, and the
+// triggering event must be fresh (not catch-up backlog recovered after idle).
+func notifiable(st store.Store, chatID, currentChatID int64, eventTime, now time.Time) bool {
+	if chatID == currentChatID {
 		return false
 	}
-	if evt.Message.IsOut {
-		return false
-	}
-	if evt.Message.ChatID == currentChatID {
-		return false
-	}
-	chat, ok := st.GetChat(evt.Message.ChatID)
+	chat, ok := st.GetChat(chatID)
 	if !ok {
 		return false
 	}
-	// Suppress notifications for muted chats and anything in the Archive
-	// folder (archived chats are treated as muted).
+	// Suppress notifications for muted chats and anything in the Archive folder
+	// (archived chats are treated as muted).
 	if chat.IsMuted || chat.IsArchived {
 		return false
 	}
-	// Suppress catch-up backlog: an old-dated message is a difference-recovery
-	// message, not live traffic (#123).
-	if now.Sub(evt.Message.Date) > notifyFreshnessWindow {
+	// Suppress catch-up backlog: an old-dated event is a difference-recovery
+	// item, not live traffic (#123). A zero time never passes this gate.
+	if eventTime.IsZero() || now.Sub(eventTime) > notifyFreshnessWindow {
 		return false
 	}
 	return true
@@ -83,9 +104,26 @@ func maybeNotify(notifier Notifier, st store.Store, evt store.Event, currentChat
 	if !shouldNotify(st, evt, currentChatID, time.Now()) {
 		return
 	}
-	// shouldNotify guarantees the chat exists.
-	chat, _ := st.GetChat(evt.Message.ChatID)
-	_ = notifier.Notify(chat.Title, truncate(evt.Message.Text, 100))
+	switch evt.Kind {
+	case store.EventNewMessage:
+		chat, _ := st.GetChat(evt.Message.ChatID) // shouldNotify guarantees the chat exists.
+		_ = notifier.Notify(chat.Title, truncate(evt.Message.Text, 100))
+	case store.EventReactionsUpdate:
+		chat, _ := st.GetChat(evt.ChatID)
+		_ = notifier.Notify(chat.Title, reactionBody(evt.ReactionEmoji))
+	case store.EventEditMessage:
+		chat, _ := st.GetChat(evt.Message.ChatID)
+		_ = notifier.Notify(chat.Title, reactionBody(evt.ReactionEmoji))
+	}
+}
+
+// reactionBody renders the notification body for a reaction, including the emoji
+// when one is available (custom-emoji reactions carry none).
+func reactionBody(emoji string) string {
+	if emoji == "" {
+		return "reacted to your message"
+	}
+	return "reacted " + emoji + " to your message"
 }
 
 type App struct {

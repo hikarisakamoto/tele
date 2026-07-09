@@ -332,6 +332,31 @@ func reactionsHaveUnread(mr tg.MessageReactions) bool {
 	return false
 }
 
+// newestUnreadReaction returns the emoji and timestamp of the most recent unread
+// reaction on the message that was not sent by us. ok is false when there is no
+// such reaction. A custom-emoji reaction yields ok=true with an empty emoji (it
+// has no unicode emoticon to display).
+func newestUnreadReaction(mr tg.MessageReactions) (emoji string, date time.Time, ok bool) {
+	var best *tg.MessagePeerReaction
+	for i := range mr.RecentReactions {
+		r := &mr.RecentReactions[i]
+		if !r.Unread || r.My {
+			continue
+		}
+		if best == nil || r.Date > best.Date {
+			best = r
+		}
+	}
+	if best == nil {
+		return "", time.Time{}, false
+	}
+	date = time.Unix(int64(best.Date), 0)
+	if e, isEmoji := best.Reaction.(*tg.ReactionEmoji); isEmoji {
+		return e.Emoticon, date, true
+	}
+	return "", date, true
+}
+
 func convertReactions(mr tg.MessageReactions) []store.Reaction {
 	out := make([]store.Reaction, 0, len(mr.Results))
 	for _, rc := range mr.Results {

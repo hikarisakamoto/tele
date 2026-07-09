@@ -280,9 +280,14 @@ type Event struct {
 	// ReactionsUnread reports that an EventReactionsUpdate carries at least one
 	// unread recent reaction (from UpdateMessageReactions).
 	ReactionsUnread bool
-	Online          bool
-	TypingAction    TypingAction
-	Muted           bool
+	// ReactionEmoji is the emoji of the newest unread reaction (for notifications);
+	// empty for a custom-emoji reaction. ReactionDate is when that reaction was
+	// added, used to suppress stale catch-up reactions after an idle reconnect.
+	ReactionEmoji string
+	ReactionDate  time.Time
+	Online        bool
+	TypingAction  TypingAction
+	Muted         bool
 	// Draft carries the new draft text for EventDraftMessage.
 	Draft string
 }

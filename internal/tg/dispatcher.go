@@ -117,8 +117,14 @@ func setupDispatcher(
 		}
 		log.Debug("dispatcher: edit message",
 			zap.Int64("chat_id", msg.ChatID), zap.Int("msg_id", msg.ID))
+		evt := store.Event{Kind: store.EventEditMessage, Message: msg}
+		// A hidden edit that carries an unread reaction (1:1 chats deliver peer
+		// reactions this way) enriches the event for the reaction notification.
+		if m, ok := raw.(*tg.Message); ok && msg.HasUnreadReactions {
+			evt.ReactionEmoji, evt.ReactionDate, _ = newestUnreadReaction(m.Reactions)
+		}
 		select {
-		case mustDeliver <- store.Event{Kind: store.EventEditMessage, Message: msg}:
+		case mustDeliver <- evt:
 		case <-ctx.Done():
 		}
 		return nil
@@ -158,6 +164,7 @@ func setupDispatcher(
 			return nil
 		}
 		reactions := convertReactions(upd.Reactions)
+		emoji, date, _ := newestUnreadReaction(upd.Reactions)
 		select {
 		case mustDeliver <- store.Event{
 			Kind:            store.EventReactionsUpdate,
@@ -165,6 +172,8 @@ func setupDispatcher(
 			MsgID:           upd.MsgID,
 			Reactions:       reactions,
 			ReactionsUnread: reactionsHaveUnread(upd.Reactions),
+			ReactionEmoji:   emoji,
+			ReactionDate:    date,
 		}:
 		case <-ctx.Done():
 		}
