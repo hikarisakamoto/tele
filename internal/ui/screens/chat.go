@@ -2,6 +2,7 @@ package screens
 
 import (
 	"image"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -524,7 +525,9 @@ func (m *ChatModel) Update(msg tea.Msg) (layout.Pane, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if m.composerFocused {
 			if msg.Code == tea.KeyEnter && msg.Mod == 0 && m.composer.HasAttachment() {
-				caption := m.composer.Value()
+				// Trim surrounding whitespace/blank lines from the caption
+				// before sending; internal blank lines are preserved (#154).
+				caption := strings.TrimSpace(m.composer.Value())
 				replyID := m.replyToMsgID
 				m.clearPendingAction()
 				m.composer.Reset()
@@ -540,7 +543,10 @@ func (m *ChatModel) Update(msg tea.Msg) (layout.Pane, tea.Cmd) {
 				}
 			}
 			if msg.Code == tea.KeyEnter && msg.Mod == 0 {
-				text := m.composer.Value()
+				// Trim surrounding whitespace/blank lines so padding and empty
+				// leading/trailing lines are not sent; a message that is empty
+				// after trimming is dropped by the text != "" guard below (#154).
+				text := strings.TrimSpace(m.composer.Value())
 				replyID := m.replyToMsgID
 				editID := m.editMsgID
 				wasTyping := !m.lastTypingAt.IsZero()

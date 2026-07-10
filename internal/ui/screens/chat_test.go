@@ -289,6 +289,64 @@ func TestChat_SendMessage_CarriesReplyToMsgID(t *testing.T) {
 	assert.Equal(t, 5, req.ReplyToMsgID)
 }
 
+func TestChat_SendMessage_TrimsSurroundingWhitespace(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	chat := &store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}}
+	m.SetChat(chat)
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetComposerValue("  \n hello world \n\n ")
+	newPane, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_ = newPane
+	require.NotNil(t, cmd)
+	req, ok := cmd().(screens.SendMsgRequest)
+	require.True(t, ok)
+	assert.Equal(t, "hello world", req.Text)
+}
+
+func TestChat_SendMessage_WhitespaceOnly_NotSent(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	chat := &store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}}
+	m.SetChat(chat)
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetComposerValue("   \n\n\t ")
+	newPane, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_ = newPane
+	assert.Nil(t, cmd, "a whitespace-only message must not be sent")
+}
+
+func TestChat_SendMessage_PreservesInternalBlankLines(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	chat := &store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}}
+	m.SetChat(chat)
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetComposerValue("  first\n\nsecond  ")
+	newPane, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_ = newPane
+	require.NotNil(t, cmd)
+	req, ok := cmd().(screens.SendMsgRequest)
+	require.True(t, ok)
+	assert.Equal(t, "first\n\nsecond", req.Text)
+}
+
+func TestChat_SendMedia_TrimsCaption(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	chat := &store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}}
+	m.SetChat(chat)
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetAttachment("pic.jpg", 1000, store.MediaPhoto, store.MediaPhoto, true)
+	m.SetComposerValue("  nice photo \n")
+	newPane, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_ = newPane
+	require.NotNil(t, cmd)
+	req, ok := cmd().(screens.SendMediaRequest)
+	require.True(t, ok)
+	assert.Equal(t, "nice photo", req.Caption)
+}
+
 func TestChat_SetEdit_SetsState(t *testing.T) {
 	m := screens.NewChatModel(80, 24)
 	m.SetEdit(7, "▌ Edit Message\n▌ hello")
