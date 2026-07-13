@@ -37,9 +37,9 @@ func TestMediaBuilderFor_VideoUnsupported(t *testing.T) {
 	assert.False(t, ok, "video send-as is #107, not yet supported")
 }
 
-func TestComputeFolderUnreads_NoArchiveBadge_ExcludesArchived(t *testing.T) {
+func TestComputeFolderUnreads_ArchiveNoBadge_CountsArchivedInCustomFolder(t *testing.T) {
 	st := store.NewMemory()
-	// Two archived chats (one unread) and one normal unread chat in a group folder.
+	// One archived unread group and one normal unread group in a group folder.
 	st.SetChat(store.Chat{ID: 1, Peer: store.Peer{ID: 1, Type: store.PeerGroup}, IsArchived: true, UnreadCount: 2})
 	st.SetChat(store.Chat{ID: 2, Peer: store.Peer{ID: 2, Type: store.PeerGroup}, UnreadCount: 3})
 	m := NewRootModel(nil, st, 50, false)
@@ -47,11 +47,12 @@ func TestComputeFolderUnreads_NoArchiveBadge_ExcludesArchived(t *testing.T) {
 	m.folderBar.SetArchivePresent(true)
 
 	counts := m.computeFolderUnreads()
-	// Archive carries no unread badge.
+	// Archive virtual folder carries no unread badge.
 	_, hasArchive := counts[store.ArchiveFolderID]
 	assert.False(t, hasArchive)
-	// The archived chat does not inflate the Groups folder badge.
-	assert.Equal(t, 1, counts[7])
+	// Custom folders show archived chats in their listing, so the badge count
+	// aligns with that content and includes the archived unread chat.
+	assert.Equal(t, 2, counts[7])
 }
 
 func TestSyncFolderBar_TogglesArchivePresence(t *testing.T) {
