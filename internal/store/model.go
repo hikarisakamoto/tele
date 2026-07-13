@@ -124,6 +124,10 @@ type Chat struct {
 	// reactions on your messages that you have not yet viewed. Persisted like
 	// UnreadCount; cleared by messages.readReactions when the chat is opened.
 	UnreadReactionsCount int
+	// UnreadMentionsCount is the Telegram dialog `unread_mentions_count`:
+	// messages that mention you (or reply to you) that you have not yet viewed.
+	// Persisted like UnreadCount; cleared by messages.readMentions on open.
+	UnreadMentionsCount int
 	// IsArchived reports whether the chat lives in the built-in Archive
 	// folder (folder_id 1).
 	IsArchived bool
@@ -173,7 +177,11 @@ type Message struct {
 	// HasUnreadReactions is true when the raw message carried at least one recent
 	// reaction flagged unread (a not-yet-viewed reaction on one of our messages).
 	HasUnreadReactions bool
-	Forward            *ForwardInfo // nil if not forwarded
+	// Mentioned is the raw message `mentioned` flag: the message mentions us
+	// (@username, or a reply to one of our messages). Drives the chat-list
+	// unread-mention indicator when the message is incoming and unread (#155).
+	Mentioned bool
+	Forward   *ForwardInfo // nil if not forwarded
 	// LocalMedia describes media being uploaded for an optimistic outgoing bubble,
 	// rendered from a local file before the server confirms. nil for normal messages.
 	LocalMedia *LocalMedia

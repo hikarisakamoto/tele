@@ -48,6 +48,13 @@ type Store interface {
 	// SetChatReactionsRead clears a chat's unread-reaction count and its tracked
 	// message set (e.g. on open or readReactions completion).
 	SetChatReactionsRead(chatID int64)
+	// ApplyUnreadMention idempotently adjusts a chat's unread-mention count from a
+	// per-message signal, tracking which messages carry an unread mention.
+	// Returns true when the count changed.
+	ApplyUnreadMention(chatID int64, msgID int, hasMention bool) bool
+	// SetChatMentionsRead clears a chat's unread-mention count and its tracked
+	// message set (e.g. on open or readMentions completion).
+	SetChatMentionsRead(chatID int64)
 	FolderFilters() []FolderFilter
 	SetFolderFilters(filters []FolderFilter)
 	ClearForNewAccount(ownerID int64)

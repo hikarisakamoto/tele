@@ -155,6 +155,40 @@ func TestChatList_MutedReactionUnread_AllRender(t *testing.T) {
 	assert.Contains(t, view, "[5]")
 }
 
+func TestChatList_ShowsMentionIndicator(t *testing.T) {
+	m := screens.NewChatListModel()
+	m.SetSize(40, 20)
+	m.SetChats([]store.Chat{{ID: 1, Title: "Alice", UnreadMentionsCount: 1}})
+	view := m.View()
+	assert.Contains(t, view, "@")
+}
+
+func TestChatList_MentionIndicatorWithCount(t *testing.T) {
+	m := screens.NewChatListModel()
+	m.SetSize(40, 20)
+	m.SetChats([]store.Chat{{ID: 1, Title: "Alice", UnreadMentionsCount: 3}})
+	view := m.View()
+	assert.Contains(t, view, "@3")
+}
+
+func TestChatList_NoMentionIndicatorWhenZero(t *testing.T) {
+	m := screens.NewChatListModel()
+	m.SetSize(40, 20)
+	m.SetChats([]store.Chat{{ID: 1, Title: "Alice", UnreadMentionsCount: 0}})
+	view := m.View()
+	assert.NotContains(t, view, "@")
+}
+
+func TestChatList_MentionReactionUnread_AllRender(t *testing.T) {
+	m := screens.NewChatListModel()
+	m.SetSize(40, 20)
+	m.SetChats([]store.Chat{{ID: 1, Title: "Alice", UnreadCount: 5, UnreadReactionsCount: 1, UnreadMentionsCount: 2}})
+	view := m.View()
+	assert.Contains(t, view, "♥")
+	assert.Contains(t, view, "@2")
+	assert.Contains(t, view, "[5]")
+}
+
 func TestChatList_NotMuted_NoMarker(t *testing.T) {
 	m := screens.NewChatListModel()
 	m.SetSize(40, 20)

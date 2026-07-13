@@ -27,6 +27,9 @@ func (m RootModel) handleStoreEvent(msg store.Event) (RootModel, tea.Cmd) {
 				m.st.IncrementChatUnread(msg.Message.ChatID)
 				unreadChanged = true
 			}
+			if msg.Message.Mentioned && m.st.ApplyUnreadMention(msg.Message.ChatID, msg.Message.ID, true) {
+				unreadChanged = true
+			}
 		}
 		m.chatList.SetChats(m.filteredChats())
 		// Folder unread counts only depend on per-chat unread; recompute solely
@@ -44,7 +47,11 @@ func (m RootModel) handleStoreEvent(msg store.Event) (RootModel, tea.Cmd) {
 		}
 		if msg.Message.ChatID == m.currentChatID {
 			m.chat.SetMessages(m.st.Messages(m.currentChatID))
-			return m, tea.Batch(m.markReadCmd(), m.pendingDownloadCmds([]store.Message{msg.Message}))
+			cmds := []tea.Cmd{m.markReadCmd(), m.pendingDownloadCmds([]store.Message{msg.Message})}
+			if m.focus == FocusChat && msg.Message.Mentioned {
+				cmds = append(cmds, m.readMentionsCmd(msg.Message.ChatID))
+			}
+			return m, tea.Batch(cmds...)
 		}
 		return m, highlightCmd
 	case store.EventReadInbox:

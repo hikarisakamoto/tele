@@ -32,6 +32,9 @@ var (
 	// reactionStyle tints the unread-reaction glyph pink to stand apart from the
 	// numeric unread badge.
 	reactionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	// mentionStyle tints the unread-mention glyph blue to stand apart from the
+	// pink reaction glyph and the numeric unread badge.
+	mentionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
 	// chatHighlightBase is the tone the chat-row title highlight fades toward
 	// (approximates default light-grey text on a dark background).
 	chatHighlightBase = lipgloss.Color("250")
@@ -60,11 +63,24 @@ func formatReactions(count int) string {
 	}
 }
 
+// formatMentions renders the unread-mention token: empty when none, a bare
+// at-sign for one, or an at-sign with the count for many.
+func formatMentions(count int) string {
+	switch {
+	case count <= 0:
+		return ""
+	case count == 1:
+		return "@"
+	default:
+		return fmt.Sprintf("@%d", count)
+	}
+}
+
 // rowIndicators builds the right-aligned status column for a chat row. Tokens
-// appear in order [mute] [reaction] [unread], each separated by a single space
-// and omitted when empty: the dim mute marker, the pink unread-reaction glyph,
-// then the unread token (numeric badge, or a manual-unread dot when marked
-// unread with no real count).
+// appear in order [mute] [reaction] [mention] [unread], each separated by a
+// single space and omitted when empty: the dim mute marker, the pink
+// unread-reaction glyph, the blue unread-mention glyph, then the unread token
+// (numeric badge, or a manual-unread dot when marked unread with no real count).
 func rowIndicators(c store.Chat) string {
 	var unread string
 	switch {
@@ -77,12 +93,16 @@ func rowIndicators(c store.Chat) string {
 	if c.UnreadReactionsCount > 0 {
 		reaction = reactionStyle.Render(formatReactions(c.UnreadReactionsCount))
 	}
+	var mention string
+	if c.UnreadMentionsCount > 0 {
+		mention = mentionStyle.Render(formatMentions(c.UnreadMentionsCount))
+	}
 	var muted string
 	if c.IsMuted {
 		muted = mutedStyle.Render("×")
 	}
-	parts := make([]string, 0, 3)
-	for _, p := range []string{muted, reaction, unread} {
+	parts := make([]string, 0, 4)
+	for _, p := range []string{muted, reaction, mention, unread} {
 		if p != "" {
 			parts = append(parts, p)
 		}

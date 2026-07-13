@@ -401,6 +401,23 @@ func TestSQLite_UnreadReactionsCount_Persist(t *testing.T) {
 	assert.Equal(t, 3, c.UnreadReactionsCount)
 }
 
+func TestSQLite_UnreadMentionsCount_Persist(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tele.db")
+
+	s, err := store.NewSQLite(path, zap.NewNop())
+	require.NoError(t, err)
+	s.SetChat(store.Chat{ID: 42, Title: "Bob", UnreadMentionsCount: 3})
+	require.NoError(t, s.Close())
+
+	s2, err := store.NewSQLite(path, zap.NewNop())
+	require.NoError(t, err)
+	defer func() { _ = s2.Close() }()
+	c, ok := s2.GetChat(42)
+	require.True(t, ok)
+	assert.Equal(t, 3, c.UnreadMentionsCount)
+}
+
 func TestSQLite_ChatStateMutators(t *testing.T) {
 	s := store.NewMemory()
 	s.SetChat(store.Chat{ID: 1, Title: "A"})

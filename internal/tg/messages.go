@@ -314,6 +314,19 @@ func (c *GotdClient) ReadReactions(ctx context.Context, peer store.Peer) error {
 	})
 }
 
+func (c *GotdClient) ReadMentions(ctx context.Context, peer store.Peer) error {
+	api, err := c.acquireAPI()
+	if err != nil {
+		return err
+	}
+	return WithRetry(ctx, func() error {
+		_, err := api.MessagesReadMentions(ctx, &tg.MessagesReadMentionsRequest{
+			Peer: peerToInput(peer),
+		})
+		return err
+	})
+}
+
 func (c *GotdClient) DeleteMessages(ctx context.Context, peer store.Peer, ids []int, revoke bool) error {
 	api, err := c.acquireAPI()
 	if err != nil {

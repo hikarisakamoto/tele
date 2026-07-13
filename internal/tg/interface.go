@@ -36,6 +36,9 @@ type Client interface {
 	// ReadReactions marks all unread reactions in a dialog as read
 	// (messages.readReactions), clearing the unread-reaction indicator server-side.
 	ReadReactions(ctx context.Context, peer store.Peer) error
+	// ReadMentions marks all unread mentions in a dialog as read
+	// (messages.readMentions), clearing the unread-mention indicator server-side.
+	ReadMentions(ctx context.Context, peer store.Peer) error
 	// SetMuted mutes (indefinitely) or unmutes a peer's notifications.
 	SetMuted(ctx context.Context, peer store.Peer, muted bool) error
 	// AddToFolder adds or removes a peer from an existing dialog filter's

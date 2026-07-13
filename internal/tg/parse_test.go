@@ -48,3 +48,15 @@ func TestConvertMessage_HasUnreadReactions(t *testing.T) {
 	require.True(t, ok)
 	assert.False(t, msg2.HasUnreadReactions)
 }
+
+func TestConvertMessage_Mentioned(t *testing.T) {
+	raw := &tg.Message{ID: 7, Date: 1700000000, Mentioned: true, Message: "@you hi"}
+	out, ok := convertMessage(raw, 1)
+	require.True(t, ok)
+	assert.True(t, out.Mentioned)
+
+	plain := &tg.Message{ID: 8, Date: 1700000000, Message: "hi"}
+	out2, ok := convertMessage(plain, 1)
+	require.True(t, ok)
+	assert.False(t, out2.Mentioned)
+}

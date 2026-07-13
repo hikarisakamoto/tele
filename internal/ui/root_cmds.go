@@ -57,6 +57,29 @@ func (m RootModel) readReactionsCmd(chatID int64) tea.Cmd {
 	}
 }
 
+type readMentionsDoneMsg struct{ chatID int64 }
+
+// readMentionsCmd sends messages.readMentions for a chat, then reports done so
+// the store count can be reconciled. Nil when prerequisites are missing.
+func (m RootModel) readMentionsCmd(chatID int64) tea.Cmd {
+	if m.st == nil || m.tgClient == nil {
+		return nil
+	}
+	chat, ok := m.st.GetChat(chatID)
+	if !ok {
+		return nil
+	}
+	ctx := m.ctx
+	client := m.tgClient
+	peer := chat.Peer
+	return func() tea.Msg {
+		if err := client.ReadMentions(ctx, peer); err != nil {
+			return StatusErrMsg{Text: "read mentions failed: " + err.Error(), Sev: components.SeverityInfo}
+		}
+		return readMentionsDoneMsg{chatID: chatID}
+	}
+}
+
 func logoTickCmd() tea.Cmd {
 	return tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg {
 		return components.LogoTickMsg{}

@@ -52,6 +52,7 @@ type mockTGClient struct {
 	searchResult          []store.Chat
 	searchErr             error
 	readReactionsCalls    int
+	readMentionsCalls     int
 }
 
 type savedDraft struct {
@@ -111,6 +112,10 @@ func (m *mockTGClient) UploadFile(_ context.Context, p internaltg.UploadParams) 
 func (m *mockTGClient) MarkRead(_ context.Context, _ store.Peer, _ int) error { return nil }
 func (m *mockTGClient) ReadReactions(_ context.Context, _ store.Peer) error {
 	m.readReactionsCalls++
+	return nil
+}
+func (m *mockTGClient) ReadMentions(_ context.Context, _ store.Peer) error {
+	m.readMentionsCalls++
 	return nil
 }
 func (m *mockTGClient) MarkDialogUnread(_ context.Context, _ store.Peer, _ bool) error {
@@ -1883,6 +1888,47 @@ func TestRoot_OpenChat_ClearsUnreadReactionsOptimistically(t *testing.T) {
 	c, ok := st.GetChat(1)
 	require.True(t, ok)
 	assert.Equal(t, 0, c.UnreadReactionsCount, "opening a chat optimistically clears its unread reactions")
+}
+
+func TestRoot_NewMention_BumpsIndicatorOnOtherChat(t *testing.T) {
+	m, st := newRootWithTwoChats(t)
+	// Chat 2 is not open; an incoming mention there bumps its indicator.
+	newM, _ := m.Update(store.Event{
+		Kind: store.EventNewMessage,
+		Message: store.Message{
+			ID: 500, ChatID: 2, Mentioned: true, IsOut: false,
+		},
+	})
+	root := newM.(ui.RootModel)
+
+	c, ok := st.GetChat(2)
+	require.True(t, ok)
+	assert.Equal(t, 1, c.UnreadMentionsCount)
+
+	var chat2 store.Chat
+	for _, ch := range root.ChatList().Chats() {
+		if ch.ID == 2 {
+			chat2 = ch
+		}
+	}
+	assert.Equal(t, 1, chat2.UnreadMentionsCount)
+}
+
+func TestRoot_OpenChat_ClearsUnreadMentionsOptimistically(t *testing.T) {
+	mock := &mockTGClient{}
+	st := store.NewMemory()
+	st.SetChat(store.Chat{ID: 1, Title: "Alice", Peer: store.Peer{ID: 1, Type: store.PeerUser}, UnreadMentionsCount: 3})
+	m := ui.NewRootModel(mock, st, 50, false)
+	m = m.WithScreen(ui.ScreenMain)
+
+	newM, _ := m.Update(screens.OpenChatMsg{Chat: store.Chat{
+		ID: 1, Title: "Alice", Peer: store.Peer{ID: 1, Type: store.PeerUser},
+	}})
+	_ = newM.(ui.RootModel)
+
+	c, ok := st.GetChat(1)
+	require.True(t, ok)
+	assert.Equal(t, 0, c.UnreadMentionsCount, "opening a chat optimistically clears its unread mentions")
 }
 
 func TestRoot_PasteMsg_WhenComposerFocused_InsertsText(t *testing.T) {
