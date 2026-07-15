@@ -81,10 +81,12 @@ func TestMatcher_DefaultChatBindings(t *testing.T) {
 	m := keys.NewMatcher(keys.DefaultKeyMap())
 
 	cases := map[string]keys.Action{
-		"j":      keys.ActionDown,
-		"k":      keys.ActionUp,
+		"j":      keys.ActionCursorDown,
+		"k":      keys.ActionCursorUp,
 		"down":   keys.ActionDown,
 		"up":     keys.ActionUp,
+		"ctrl+j": keys.ActionDown,
+		"ctrl+k": keys.ActionUp,
 		"G":      keys.ActionGoBottom,
 		"ctrl+d": keys.ActionScrollHalfDown,
 		"ctrl+u": keys.ActionScrollHalfUp,

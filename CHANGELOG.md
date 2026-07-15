@@ -47,6 +47,10 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ### Changed
 
+- Chat-pane navigation keys swapped: `j`/`k` now move the per-message cursor
+  (previously scroll), and `ctrl+j`/`ctrl+k` now scroll the message view
+  (previously moved the cursor). Arrow keys are unchanged (`↑`/`↓` scroll), and
+  the status-bar hints reflect the new bindings
 - Context-menu clarity: entries now name their object ("Copy text",
   "save photo (download)", "open photo" vs "Open photo externally"); a single
   unified "Open" entry replaces the previous separate in-app open; and each

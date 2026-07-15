@@ -77,9 +77,10 @@ It also runs lean — typically ~35MB RSS at idle vs several hundred MB for desk
 
 ### ⚡ Keyboard-first UX
 
-Vim-inspired navigation (`j/k`, `gg/G`, insert mode, etc.), plus a movable
-per-message cursor (`ctrl+j/k`) that steps bubble-by-bubble, stays centered as
+Vim-inspired navigation (`gg/G`, insert mode, etc.), plus a movable
+per-message cursor (`j/k`) that steps bubble-by-bubble, stays centered as
 the chat scrolls, and is the target for the context menu and per-message actions.
+Scroll the message view without moving the cursor with `ctrl+j`/`ctrl+k`.
 
 Optional mouse support on the main screen: click a chat to open it, click a pane
 to focus it, click into the composer to start typing, and scroll the chat list or
@@ -308,8 +309,8 @@ Then prompts for:
 
 | Key                 | Action                                            |
 | ------------------- | ------------------------------------------------- |
-| `j` / `k`           | Navigate chats or scroll messages                 |
-| `ctrl+j` / `ctrl+k` | Select next / previous message                    |
+| `j` / `k`           | Navigate chats or select next / previous message  |
+| `ctrl+j` / `ctrl+k` | Scroll messages                                   |
 | `i`                 | Compose message                                   |
 | `r`                 | Reply                                             |
 | `e` / `d`           | Edit / delete message                             |

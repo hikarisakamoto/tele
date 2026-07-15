@@ -24,10 +24,10 @@
 
 | Key       | Action                         |
 | --------- | ------------------------------ |
-| `j` / `↓` | Scroll down                    |
-| `k` / `↑` | Scroll up                      |
-| `Ctrl+J`  | Select next (newer) message    |
-| `Ctrl+K`  | Select previous (older) message|
+| `j`       | Select next (newer) message    |
+| `k`       | Select previous (older) message|
+| `Ctrl+J` / `↓` | Scroll down               |
+| `Ctrl+K` / `↑` | Scroll up                 |
 | `gg`      | Scroll to top                  |
 | `G`       | Scroll to bottom               |
 | `i` / `a` | Compose message (insert mode)  |
