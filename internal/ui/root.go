@@ -377,6 +377,8 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleForwardDone(msg)
 	case StatusErrMsg:
 		return m.handleStatusErr(msg)
+	case components.ComposerLimitMsg:
+		return m.handleComposerLimit(msg)
 	case documentOpenDoneMsg:
 		return m.handleDocumentOpenDone(msg)
 	case fileDownloadDoneMsg:
@@ -466,6 +468,7 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		components.ToggleUnreadRequest,
 		components.AddToFolderRequest,
 		components.ToggleArchiveRequest,
+		components.ComposerFlashOffMsg,
 		tea.PasteMsg:
 		return m.updateUIMsg(msg)
 	// mouse input

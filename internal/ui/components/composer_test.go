@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf16"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -526,4 +527,268 @@ func TestComposer_HeightStaysCappedPastLimit(t *testing.T) {
 	require.NotZero(t, capped, "composer never reached the height cap")
 	assert.Equalf(t, capped, c.VisualHeight(),
 		"composer grew past its height cap (value=%q)", c.Value())
+}
+
+// utf16Count measures a draft in Telegram's unit: UTF-16 code units.
+func utf16Count(s string) int { return len(utf16.Encode([]rune(s))) }
+
+// With an attachment staged the composer is the caption field, so the counter
+// must track Telegram's 1024 caption cap rather than the 4096 message cap.
+func TestComposer_CounterUsesCaptionLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.SetAttachment("photo.png", 1024, store.MediaPhoto, store.MediaPhoto, true)
+	c.SetValue(strings.Repeat("a", 900)) // remaining 124 of 1024, within counterShowAt
+
+	assert.Contains(t, stripANSI(c.View()), "124")
+}
+
+// Attaching a file to a long draft drops the limit under the existing text.
+// The counter shows a negative remaining rather than clamping at 0, so the size
+// of the overshoot is visible.
+func TestComposer_CounterGoesNegativeOverLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.SetValue(strings.Repeat("a", 2000))
+	c.SetAttachment("photo.png", 1024, store.MediaPhoto, store.MediaPhoto, true)
+
+	require.True(t, c.OverLimit())
+	assert.Contains(t, stripANSI(c.View()), "-976")
+}
+
+// An emoji is a surrogate pair: two code units per rune. Counting runes would
+// overstate the remaining budget by one per emoji.
+func TestComposer_CounterCountsCodeUnitsNotRunes(t *testing.T) {
+	c := components.NewComposer(60)
+	c.SetValue(strings.Repeat("😀", 2000)) // 4000 code units, remaining 96
+
+	assert.Contains(t, stripANSI(c.View()), "96")
+}
+
+// Regression for #126: enforcement must count UTF-16 code units like Telegram,
+// not display width. A CJK rune is width 2 but a single code unit, so the old
+// display-width guard stopped this draft at half the allowance.
+func TestComposer_WideCharsGetFullLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("中", 4095))
+
+	c = typeRune(c, '中')
+	require.Equal(t, 4096, utf16Count(c.Value()), "the 4096th code unit must be accepted")
+
+	c = typeRune(c, '中')
+	assert.Equal(t, 4096, utf16Count(c.Value()), "the 4097th code unit must be rejected")
+}
+
+// An emoji costs two code units, so one must not squeeze into a one-unit gap.
+func TestComposer_EmojiCountsAsTwoCodeUnits(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 4095))
+
+	c = typeRune(c, '😀') // would land at 4097 code units
+	assert.Equal(t, 4095, utf16Count(c.Value()), "an emoji that does not fit must be rejected whole")
+}
+
+// The counter exists to explain the stop, so it must read 0 exactly when input
+// stops. Measured in runes it read "2048 remaining" on CJK that was already
+// blocked — the counter lying about the very stop it explains.
+func TestComposer_CounterReachesZeroExactlyWhenInputStops(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		fill string
+		n    int
+	}{
+		{"ascii", "a", 4096},
+		{"cjk", "中", 4096},
+		{"emoji", "😀", 2048},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := components.NewComposer(60)
+			c.Focus()
+			c.SetValue(strings.Repeat(tc.fill, tc.n))
+			require.Contains(t, stripANSI(c.View()), "0", "counter must read 0 at the limit")
+
+			before := c.Value()
+			c = typeRune(c, 'x')
+			assert.Equal(t, before, c.Value(), "input must be blocked when the counter reads 0")
+		})
+	}
+}
+
+// With an attachment staged the composer is the caption field: 1024, not 4096.
+func TestComposer_CaptionLimitIsEnforcedAt1024(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetAttachment("photo.png", 1024, store.MediaPhoto, store.MediaPhoto, true)
+	c.SetValue(strings.Repeat("a", 1023))
+
+	c = typeRune(c, 'a')
+	require.Equal(t, 1024, utf16Count(c.Value()), "the 1024th caption character must be accepted")
+
+	c = typeRune(c, 'a')
+	assert.Equal(t, 1024, utf16Count(c.Value()), "the 1025th caption character must be rejected")
+}
+
+// Only growth is rejected. Attaching a file to a long draft drops the limit
+// under the existing text; deleting back down must always work, or the
+// over-limit state would be inescapable.
+func TestComposer_DeletionWorksWhileOverLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 2000))
+	c.SetAttachment("photo.png", 1024, store.MediaPhoto, store.MediaPhoto, true)
+	require.True(t, c.OverLimit(), "2000 chars with an attachment is over the 1024 caption limit")
+
+	c, _ = c.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	assert.Equal(t, 1999, utf16Count(c.Value()), "backspace must work while over the limit")
+}
+
+// A paste is content the user already has: truncating it would lose data, so it
+// is applied in full and the draft goes over the limit.
+func TestComposer_PasteAppliedInFullPastLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+
+	c, _ = c.Update(tea.PasteMsg{Content: strings.Repeat("a", 5000)})
+	assert.Equal(t, 5000, utf16Count(c.Value()), "paste must not be truncated")
+	assert.True(t, c.OverLimit())
+}
+
+// A rejected keystroke must not disturb the draft or the cursor.
+func TestComposer_RejectedKeystrokeKeepsCursorPosition(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 4090) + "\n" + "bbbbb") // 4096 code units
+	c.SetCursorForTest(1, 2)                               // mid-way through the last row
+
+	before := c.Value()
+	c = typeRune(c, 'z')
+	require.Equal(t, before, c.Value(), "draft must be unchanged")
+	assert.Equal(t, 1, c.Line(), "cursor row must be restored")
+	assert.Equal(t, 2, c.Column(), "cursor column must be restored")
+}
+
+// collectMsgs runs a Cmd, unwrapping tea.Batch, and returns the msgs produced.
+// SignalLimit batches a tea.Tick, so each call sleeps for flashDuration before
+// yielding its ComposerFlashOffMsg. That cost is accepted here: it keeps the
+// helper honest about what the Cmd actually emits.
+func collectMsgs(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	var out []tea.Msg
+	switch m := cmd().(type) {
+	case tea.BatchMsg:
+		for _, sub := range m {
+			out = append(out, collectMsgs(sub)...)
+		}
+	case nil:
+	default:
+		out = append(out, m)
+	}
+	return out
+}
+
+// limitMsgs filters for ComposerLimitMsg.
+func limitMsgs(msgs []tea.Msg) []components.ComposerLimitMsg {
+	var out []components.ComposerLimitMsg
+	for _, m := range msgs {
+		if lm, ok := m.(components.ComposerLimitMsg); ok {
+			out = append(out, lm)
+		}
+	}
+	return out
+}
+
+// A rejected keystroke must flash the border and warn.
+func TestComposer_RejectedKeystrokeSignalsLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 4096))
+
+	c, cmd := c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	require.NotNil(t, cmd, "a rejected keystroke must signal")
+	assert.True(t, c.FlashActive(), "border must flash on rejection")
+	assert.Contains(t, collectMsgs(cmd), components.ComposerLimitMsg{
+		Kind: components.ComposerLimitTyping, Limit: 4096, Caption: false,
+	})
+}
+
+// The toast fires once per episode: a held key must not queue one per keystroke.
+func TestComposer_WarnsOncePerEpisode(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 4096))
+
+	c, cmd1 := c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	require.Len(t, limitMsgs(collectMsgs(cmd1)), 1, "first rejection warns")
+
+	c, cmd2 := c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	assert.Empty(t, limitMsgs(collectMsgs(cmd2)), "second rejection must not warn again")
+	assert.True(t, c.FlashActive(), "but it must still flash")
+}
+
+// Returning under the limit re-arms the warning.
+func TestComposer_WarningReArmsAfterGoingUnderLimit(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 4096))
+	c, _ = c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}) // warns, warned = true
+
+	c, _ = c.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})  // 4095: back under, re-arms
+	c, _ = c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})    // 4096: accepted, at the limit
+	c, cmd := c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}) // rejected
+
+	assert.Len(t, limitMsgs(collectMsgs(cmd)), 1, "a new episode must warn again")
+}
+
+// The flash decays back, and a stale tick must not clear a newer flash.
+func TestComposer_FlashClearedBySerialOnly(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	c.SetValue(strings.Repeat("a", 4096))
+	c, _ = c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	require.True(t, c.FlashActive())
+
+	c, _ = c.Update(components.ComposerFlashOffMsg{Serial: -1})
+	assert.True(t, c.FlashActive(), "a stale serial must not clear the flash")
+
+	c, _ = c.Update(components.ComposerFlashOffMsg{Serial: c.FlashSerialForTest()})
+	assert.False(t, c.FlashActive(), "the current serial must clear the flash")
+}
+
+// Paste past the limit is applied in full, and warns with its own kind.
+func TestComposer_PastePastLimitWarns(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+
+	c, cmd := c.Update(tea.PasteMsg{Content: strings.Repeat("a", 5000)})
+	require.Equal(t, 5000, utf16Count(c.Value()), "paste must still not be truncated")
+	assert.Contains(t, collectMsgs(cmd), components.ComposerLimitMsg{
+		Kind: components.ComposerLimitPaste, Limit: 4096, Caption: false,
+	})
+}
+
+// The flashing border must be visibly distinct from the normal focused border.
+func TestComposer_FlashChangesBorderColour(t *testing.T) {
+	c := components.NewComposer(60)
+	c.Focus()
+	normal := c.View()
+
+	c.SetValue(strings.Repeat("a", 4096))
+	c, _ = c.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+
+	assert.NotEqual(t, normal, c.View(), "the flashing border must differ from the focused border")
+}
+
+// The counter must adapt to the theme: the bright amber/red read well on a dark
+// background but wash out on a light one.
+func TestComposer_CounterColourIsThemeAware(t *testing.T) {
+	render := func(dark bool) string {
+		c := components.NewComposer(60)
+		c.SetDarkBackground(dark)
+		c.SetValue(strings.Repeat("a", 4090)) // remaining 6: amber
+		return c.View()
+	}
+	assert.NotEqual(t, render(true), render(false),
+		"the counter must not use the same colour on both themes")
 }

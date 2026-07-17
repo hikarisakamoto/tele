@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
@@ -21,6 +20,10 @@ const (
 	counterShowAt    = 200 // show remaining-char counter when remaining <= this
 	counterWarnAt    = 20  // counter turns amber when remaining <= this
 	sendGlyph        = "➤"
+
+	// Telegram measures message length in UTF-16 code units.
+	maxTextUTF16    = 4096 // plain text message
+	maxCaptionUTF16 = 1024 // media caption
 )
 
 type Composer struct {
@@ -36,6 +39,9 @@ type Composer struct {
 	attachOn          bool
 	attachToggle      bool
 	pending           []pendingMention
+	flash             bool // border is flashing red after a limit event
+	flashSerial       int  // guards against a stale flash-off tick
+	warned            bool // a limit toast already fired for this over-limit episode
 }
 
 // pendingMention records a mention inserted via the autocomplete popup so its
@@ -63,14 +69,18 @@ func NewComposer(width int) *Composer {
 	// Issue: https://github.com/sorokin-vladimir/tele/issues/9#issuecomment-4600787928
 	ta.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("alt+enter", "shift+enter"))
 	ta.KeyMap.Paste = key.NewBinding() // handled at root level via readClipboardCmd → tea.PasteMsg
-	ta.CharLimit = 4096
+	// Telegram counts UTF-16 code units; the textarea's own guard counts display
+	// width (uniseg.StringWidth), which halves the budget for wide characters —
+	// CJK is width 2 but one code unit. The unit is not correctable, so the guard
+	// is disabled and Update enforces the real limit (#126).
+	ta.CharLimit = 0
 	// MaxHeight alone caps the draft itself: the textarea's content guard falls back
 	// to blocking at MaxHeight logical lines, so newlines hit a hard wall at the
 	// visible cap (#159). Setting MaxContentHeight scopes MaxHeight to the viewport
-	// and moves the guard onto visual lines; CharLimit+1 is the most rows the budget
-	// can ever produce (a newline costs a char), so the char budget always binds
+	// and moves the guard onto visual lines; one row per code unit is the most the
+	// budget can ever produce (a newline costs a unit), so the budget always binds
 	// first and the overflow scrolls inside the capped viewport.
-	ta.MaxContentHeight = ta.CharLimit + 1
+	ta.MaxContentHeight = maxTextUTF16 + 1
 	ta.SetWidth(width - 2)
 	return &Composer{ta: ta, width: width}
 }
@@ -111,6 +121,48 @@ func (c *Composer) Reset() {
 	c.ta.Reset()
 	c.replyPreview = ""
 	c.pending = nil
+}
+
+// limit returns the draft's maximum length in UTF-16 code units. With an
+// attachment staged the composer is the caption field, which Telegram caps
+// lower than a plain text message.
+func (c *Composer) limit() int {
+	if c.attachOn {
+		return maxCaptionUTF16
+	}
+	return maxTextUTF16
+}
+
+// OverLimit reports whether the draft is longer than Telegram accepts. Typing
+// cannot cross the limit; the state is reached by pasting past it or by
+// attaching a file to a draft longer than a caption may be.
+func (c *Composer) OverLimit() bool {
+	return utf16Len(c.ta.Value()) > c.limit()
+}
+
+// Line and Column expose the cursor position (test accessors).
+func (c *Composer) Line() int   { return c.ta.Line() }
+func (c *Composer) Column() int { return c.ta.Column() }
+
+// SetCursorForTest places the cursor at a logical row and column (test helper).
+func (c *Composer) SetCursorForTest(row, col int) { c.setCursor(row, col) }
+
+// setCursor moves the cursor to a logical row and column. SetValue parks the
+// cursor at the end of the draft, so the row is reached by walking up: CursorUp
+// steps one visual line and so lowers the logical row by at most one per call,
+// which cannot overshoot the target.
+func (c *Composer) setCursor(row, col int) {
+	for c.ta.Line() > row {
+		c.ta.CursorUp()
+	}
+	c.ta.SetCursorColumn(col)
+}
+
+// restore puts back a draft that was rejected for exceeding the limit, leaving
+// the cursor where the user had it.
+func (c *Composer) restore(v string, row, col int) {
+	c.ta.SetValue(v)
+	c.setCursor(row, col)
 }
 
 // currentRowBeforeCursor returns the runes of the current row up to the cursor.
@@ -392,27 +444,40 @@ func (c *Composer) View() string {
 		// matching the status bar's insert accent.
 		borderFg = lipgloss.LightDark(c.hasDarkBackground)(lipgloss.Color("28"), lipgloss.Color("40"))
 	}
+	if c.flash {
+		// Red: input refused, or the draft is over the limit.
+		borderFg = lipgloss.LightDark(c.hasDarkBackground)(lipgloss.Color("160"), lipgloss.Color("203"))
+	}
 
 	return RenderBox(content, "", "", "", c.sendAffordance(), lipgloss.RoundedBorder(), borderFg, c.width, h)
 }
 
 // sendAffordance renders the bottom-border send indicator: a dim glyph when the
 // composer is empty, a blue glyph (Telegram send-button association) once there
-// is text, plus a remaining-character counter when near the CharLimit.
+// is text, plus a remaining-character counter when near the limit. The counter
+// measures with utf16Len — the same function Update enforces with — so it cannot
+// disagree with the point at which input actually stops (#126).
 func (c *Composer) sendAffordance() string {
-	remaining := c.ta.CharLimit - utf8.RuneCountInString(c.ta.Value())
-	hasText := remaining < c.ta.CharLimit
+	used := utf16Len(c.ta.Value())
+	remaining := c.limit() - used
 
 	glyphColor := lipgloss.Color("240") // dim: nothing to send
-	if hasText {
+	if used > 0 {
 		glyphColor = lipgloss.LightDark(c.hasDarkBackground)(lipgloss.Color("27"), lipgloss.Color("39")) // blue: ready
 	}
 	glyph := lipgloss.NewStyle().Foreground(glyphColor).Render(sendGlyph)
 
 	if remaining <= counterShowAt {
-		counterColor := lipgloss.Color("240")
-		if remaining <= counterWarnAt {
-			counterColor = lipgloss.Color("214") // amber
+		// The warn/over colours are theme-aware: the bright amber and red read
+		// well on a dark background but wash out on a light one, so a light
+		// background gets darker, higher-contrast variants.
+		ld := lipgloss.LightDark(c.hasDarkBackground)
+		counterColor := ld(lipgloss.Color("238"), lipgloss.Color("240"))
+		switch {
+		case remaining < 0:
+			counterColor = ld(lipgloss.Color("160"), lipgloss.Color("203")) // red: over the limit, send is blocked
+		case remaining <= counterWarnAt:
+			counterColor = ld(lipgloss.Color("130"), lipgloss.Color("214")) // amber
 		}
 		counter := lipgloss.NewStyle().Foreground(counterColor).Render(fmt.Sprintf("%d", remaining))
 		return counter + " " + glyph
@@ -423,7 +488,38 @@ func (c *Composer) sendAffordance() string {
 func (c *Composer) Init() tea.Cmd { return nil }
 
 func (c *Composer) Update(msg tea.Msg) (*Composer, tea.Cmd) {
+	if off, ok := msg.(ComposerFlashOffMsg); ok {
+		if off.Serial == c.flashSerial {
+			c.flash = false
+		}
+		return c, nil
+	}
+
+	before := utf16Len(c.ta.Value())
+	prev, row, col := c.ta.Value(), c.ta.Line(), c.ta.Column()
+
 	var cmd tea.Cmd
 	c.ta, cmd = c.ta.Update(msg)
+
+	_, isPaste := msg.(tea.PasteMsg)
+	after := utf16Len(c.ta.Value())
+	grewPastLimit := after > c.limit() && after > before
+
+	switch {
+	case grewPastLimit && !isPaste:
+		// A refused keystroke loses nothing, so typing is rejected at the
+		// boundary. Only growth is rejected: deleting must always work while over
+		// the limit (#126).
+		c.restore(prev, row, col)
+		return c, tea.Batch(cmd, c.SignalLimit(ComposerLimitTyping))
+	case grewPastLimit && isPaste:
+		// A paste is content the user already has: truncating it would lose data,
+		// so it is applied in full and the draft goes over the limit.
+		return c, tea.Batch(cmd, c.SignalLimit(ComposerLimitPaste))
+	}
+
+	if after <= c.limit() {
+		c.warned = false // back within the limit: re-arm the warning
+	}
 	return c, cmd
 }

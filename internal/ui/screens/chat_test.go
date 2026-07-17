@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/sorokin-vladimir/tele/internal/store"
+	"github.com/sorokin-vladimir/tele/internal/ui/components"
 	"github.com/sorokin-vladimir/tele/internal/ui/keys"
 	"github.com/sorokin-vladimir/tele/internal/ui/screens"
 	"github.com/stretchr/testify/assert"
@@ -734,4 +735,85 @@ func TestChatModel_ScrollInfo_DelegatesToMessageList(t *testing.T) {
 	m.SetMessages(msgs)
 	info := m.ScrollInfo()
 	assert.Greater(t, info.Total, info.Visible, "overflowing chat reports overflow")
+}
+
+// batchMsgs runs a Cmd, unwrapping tea.Batch, and returns the msgs produced.
+// SignalLimit batches a tea.Tick, so this blocks for the flash duration.
+func batchMsgs(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	var out []tea.Msg
+	switch msg := cmd().(type) {
+	case tea.BatchMsg:
+		for _, sub := range msg {
+			out = append(out, batchMsgs(sub)...)
+		}
+	case nil:
+	default:
+		out = append(out, msg)
+	}
+	return out
+}
+
+// An over-limit caption would be rejected by Telegram, so Enter must refuse
+// locally and say why rather than sending.
+func TestChat_EnterDoesNotSendOverLimitCaption(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	m.SetChat(&store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}})
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetAttachment("photo.png", 1024, store.MediaPhoto, store.MediaPhoto, true)
+	m.SetComposerValue(strings.Repeat("a", 2000)) // over the 1024 caption limit
+
+	newPane, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = newPane.(*screens.ChatModel)
+
+	msgs := batchMsgs(cmd)
+	for _, msg := range msgs {
+		_, isSend := msg.(screens.SendMediaRequest)
+		assert.False(t, isSend, "an over-limit caption must not be sent")
+	}
+	assert.Contains(t, msgs, components.ComposerLimitMsg{
+		Kind: components.ComposerLimitOver, Limit: 1024, Caption: true,
+	})
+	// The send path calls composer.Reset(); a preserved draft proves it was not taken.
+	assert.True(t, m.ComposerOverLimit(), "the draft must be kept, not cleared")
+}
+
+// Same for a plain text message pasted past 4096.
+func TestChat_EnterDoesNotSendOverLimitText(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	m.SetChat(&store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}})
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetComposerValue(strings.Repeat("a", 5000))
+
+	newPane, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = newPane.(*screens.ChatModel)
+
+	for _, msg := range batchMsgs(cmd) {
+		_, isSend := msg.(screens.SendMsgRequest)
+		assert.False(t, isSend, "an over-limit message must not be sent")
+	}
+	assert.True(t, m.ComposerOverLimit(), "the draft must be kept, not cleared")
+}
+
+// Regression for #126: the flash-off tick must actually reach the composer.
+// Testing Composer.Update directly hid a missing route — the msg was handled
+// but never delivered, so the border stayed red forever in the real app.
+func TestChat_RoutesFlashOffToComposer(t *testing.T) {
+	m := screens.NewChatModel(80, 24)
+	m.SetChat(&store.Chat{ID: 10, Peer: store.Peer{ID: 10, Type: store.PeerUser}})
+	newPane, _ := m.Update(keys.ActionMsg{Action: keys.ActionInsert})
+	m = newPane.(*screens.ChatModel)
+	m.SetComposerValue(strings.Repeat("a", 4096))
+
+	newPane, _ = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}) // rejected: flash on
+	m = newPane.(*screens.ChatModel)
+	require.True(t, m.ComposerFlashActive(), "rejection must flash")
+
+	newPane, _ = m.Update(components.ComposerFlashOffMsg{Serial: m.ComposerFlashSerial()})
+	m = newPane.(*screens.ChatModel)
+	assert.False(t, m.ComposerFlashActive(), "the flash-off tick must clear the border")
 }

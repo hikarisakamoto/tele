@@ -226,3 +226,25 @@ func TestToastStack_DarkBackgroundChangesRender(t *testing.T) {
 type toastTestMsg struct{ id int }
 
 var _ tea.Msg = toastTestMsg{}
+
+// Bottom-anchored toasts must clear the composer: a warning about what you are
+// typing is useless if it covers the field you are typing into (#126).
+func TestToastStack_BottomInsetClearsComposer(t *testing.T) {
+	const height, composerH = 24, 5
+	s := NewToastStack(80, height, 3, ZoneBottomRight, ZoneTopRight)
+	s.SetBottomInset(composerH)
+	s.Add(ToastWarning, "message limit reached")
+
+	zones := s.Zones()
+	if len(zones) != 1 {
+		t.Fatalf("want 1 zone, got %d", len(zones))
+	}
+	z := zones[0]
+	blockH := strings.Count(z.Block, "\n") + 1
+
+	// The composer occupies the last composerH rows above the 1-row status bar.
+	firstComposerRow := height - 1 - composerH
+	if z.Top+blockH > firstComposerRow {
+		t.Fatalf("toast bottom row %d overlaps composer starting at %d", z.Top+blockH, firstComposerRow)
+	}
+}

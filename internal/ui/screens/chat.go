@@ -396,6 +396,14 @@ func (m *ChatModel) SetReply(msgID int, preview, senderName string) {
 // detected media kind (Photo/Video) labeling the non-file option; sendAs is the
 // current selection. toggleable shows the Photo|Video / File affordance
 // (image/video only).
+// ComposerOverLimit reports whether the draft exceeds what Telegram accepts.
+func (m *ChatModel) ComposerOverLimit() bool { return m.composer.OverLimit() }
+
+// ComposerFlashActive and ComposerFlashSerial expose the composer's limit-flash
+// state (test accessors).
+func (m *ChatModel) ComposerFlashActive() bool { return m.composer.FlashActive() }
+func (m *ChatModel) ComposerFlashSerial() int  { return m.composer.FlashSerialForTest() }
+
 func (m *ChatModel) SetAttachment(name string, size int64, nativeKind, sendAs store.MediaKind, toggleable bool) {
 	m.composer.SetAttachment(name, size, nativeKind, sendAs, toggleable)
 	m.refreshPlaceholder()
@@ -529,6 +537,13 @@ func (m *ChatModel) Update(msg tea.Msg) (layout.Pane, tea.Cmd) {
 		}
 		return m, nil
 
+	case components.ComposerFlashOffMsg:
+		// The flash decays on a timer, so this must reach the composer even if
+		// focus has moved on since the rejection (#126).
+		newC, cmd := m.composer.Update(msg)
+		m.composer = newC
+		return m, cmd
+
 	case tea.PasteMsg:
 		if m.composerFocused {
 			newC, cmd := m.composer.Update(msg)
@@ -539,6 +554,12 @@ func (m *ChatModel) Update(msg tea.Msg) (layout.Pane, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		if m.composerFocused {
+			// An over-limit draft would be rejected by Telegram (4096 for a
+			// message, 1024 for a caption). Refuse locally and keep the draft so
+			// the user can trim it (#126).
+			if msg.Code == tea.KeyEnter && msg.Mod == 0 && m.composer.OverLimit() {
+				return m, m.composer.SignalLimit(components.ComposerLimitOver)
+			}
 			if msg.Code == tea.KeyEnter && msg.Mod == 0 && m.composer.HasAttachment() {
 				// Trim surrounding whitespace/blank lines from the caption
 				// before sending; internal blank lines are preserved (#154).

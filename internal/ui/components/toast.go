@@ -70,6 +70,7 @@ type ToastStack struct {
 	toasts            []toast
 	serial            int
 	zoneFor           map[ToastKind]ToastZone
+	bottomInset       int // rows reserved at the bottom (the composer)
 	hasDarkBackground bool
 }
 
@@ -90,6 +91,11 @@ func NewToastStack(width, height, maxVisible int, errorZone, notifyZone ToastZon
 }
 
 func (s *ToastStack) SetSize(w, h int) { s.width, s.height = w, h }
+
+// SetBottomInset reserves rows above the status bar that bottom-anchored toasts
+// must not cover — the composer. A warning about what you are typing is useless
+// if it lands on top of the field you are typing into (#126).
+func (s *ToastStack) SetBottomInset(rows int) { s.bottomInset = rows }
 
 // SetDarkBackground records the terminal theme so toast panel colors adapt to a
 // dark vs light background.
@@ -285,7 +291,7 @@ func (s *ToastStack) zoneLayout(zone ToastZone) (entries []zoneEntry, top, left 
 	}
 	left = clampInt(s.width-s.boxWidth()-2, 0, s.width)
 	if zone == ZoneBottomRight {
-		top = s.height - blockH - 1
+		top = s.height - s.bottomInset - blockH - 1
 		if top < 0 {
 			top = 0
 		}

@@ -232,6 +232,16 @@ func (m RootModel) updateUIMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case components.ComposerFlashOffMsg:
+		// The composer's limit flash decays on a timer; without this route the
+		// tick never lands and the border stays red (#126).
+		if m.screen != ScreenMain {
+			return m, nil
+		}
+		newPane, cmd := m.chat.Update(msg)
+		m.chat = newPane.(*screens.ChatModel)
+		return m, cmd
+
 	case tea.PasteMsg:
 		if m.screen != ScreenMain {
 			return m, nil

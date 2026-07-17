@@ -60,7 +60,17 @@ func (m RootModel) handleFileSelected(msg screens.FileSelectedMsg) (RootModel, t
 	// alone does not flip the root's vim mode, which key routing depends on).
 	m.vimState.Mode = keys.ModeInsert
 	m.statusBar.SetMode(keys.ModeInsert)
-	return m, m.chat.FocusComposer()
+	// Attaching drops the limit from a message's 4096 to a caption's 1024, which
+	// can leave an existing draft over the limit (#126).
+	focusCmd := m.chat.FocusComposer()
+	if m.chat.ComposerOverLimit() {
+		var toastCmd tea.Cmd
+		m, toastCmd = m.handleComposerLimit(components.ComposerLimitMsg{
+			Kind: components.ComposerLimitOver, Limit: maxCaptionChars, Caption: true,
+		})
+		return m, tea.Batch(focusCmd, toastCmd)
+	}
+	return m, focusCmd
 }
 
 // toggleSendAs flips the staged attachment between its native kind and File.

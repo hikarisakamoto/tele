@@ -136,6 +136,12 @@ func (m RootModel) View() tea.View {
 		if m.photoViewer != nil {
 			content = m.photoViewerView(dimBackground(content, m.hasDarkBackground))
 		}
+		// Bottom-anchored toasts must clear the composer: a limit warning is
+		// useless on top of the field it is about (#126). The composer grows with
+		// the draft, so the inset is read per frame.
+		if m.chat != nil {
+			m.toasts.SetBottomInset(m.chat.ComposerHeight())
+		}
 		// Toasts are stamped last so they float above every other overlay.
 		for _, z := range m.toasts.Zones() {
 			content = overlayAt(content, z.Block, m.width, m.height, z.Top, z.Left)
