@@ -25,6 +25,13 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
   an action reads the same everywhere and hints stay in sync with the bindings
   across every pane, mode, and menu
 
+### Fixed
+
+- Chat rows containing an inline image no longer stay full-color when a modal
+  (search, context menu, help, etc.) dims the background. The image now fades
+  out with the rest of the pane for the duration of the modal and reappears
+  instantly on close, so the modal is the clear visual focus (#143)
+
 ## [1.8.2] - 2026-07-18 — Reliable package publishing
 
 ### Fixed

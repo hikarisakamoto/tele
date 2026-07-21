@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
@@ -10,12 +11,16 @@ import (
 )
 
 // dimBackground flattens content to a faded monochrome wash behind a modal
-// (a btop-style overlay effect). Lines containing a Kitty image placeholder
-// are passed through verbatim: images are left alone, and the placeholder
-// foreground encodes the image ID, which recoloring would corrupt. Every other
-// line has its ANSI stripped and is re-rendered in a single faded gray, so the
-// whole background collapses to one dim hue. Visible width and line count are
-// preserved so the overlay stamping math is unaffected.
+// (a btop-style overlay effect). Every line has its ANSI stripped and is
+// re-rendered in a single faded gray, so the whole background collapses to one
+// dim hue. Lines carrying a Kitty image placeholder additionally have their
+// placeholder cells blanked: the id-encoding foreground is dropped and the
+// placeholder cells become spaces, so no cell references the image and the
+// terminal draws nothing there for the duration of the modal (Unicode
+// virtual-placement contract). The image data stays resident, so closing the
+// modal re-emits the placeholders and the image reappears without a re-transmit.
+// Visible width and line count are preserved so the overlay stamping math is
+// unaffected.
 func dimBackground(content string, dark bool) string {
 	gray := lipgloss.Color("240")
 	if !dark {
@@ -25,12 +30,36 @@ func dimBackground(content string, dark bool) string {
 
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
-		if strings.ContainsRune(line, kitty.Placeholder) {
-			continue
+		stripped := xansi.Strip(line)
+		if strings.ContainsRune(stripped, kitty.Placeholder) {
+			stripped = blankKittyPlaceholders(stripped)
 		}
-		lines[i] = dim.Render(xansi.Strip(line))
+		lines[i] = dim.Render(stripped)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// blankKittyPlaceholders replaces each Kitty Unicode placeholder cell (the
+// placeholder rune followed by its row/column diacritics) with a single space,
+// leaving any surrounding bubble border and text untouched. The line must have
+// its ANSI already stripped. Display width is preserved because each placeholder
+// cell occupies exactly one column.
+func blankKittyPlaceholders(line string) string {
+	var b strings.Builder
+	inPlaceholder := false
+	for _, r := range line {
+		switch {
+		case r == kitty.Placeholder:
+			b.WriteRune(' ')
+			inPlaceholder = true
+		case inPlaceholder && unicode.Is(unicode.Mn, r):
+			// Drop the placeholder's row/column diacritics (nonspacing marks).
+		default:
+			inPlaceholder = false
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // stampOverlay writes overlayLines into baseLines starting at (top, left).

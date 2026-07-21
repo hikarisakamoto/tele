@@ -30,10 +30,30 @@ func TestDimBackground_LightBackgroundUsesLighterGray(t *testing.T) {
 	assert.Equal(t, "plain text", xansi.Strip(out))
 }
 
-func TestDimBackground_LeavesKittyPlaceholderLinesUntouched(t *testing.T) {
-	imageLine := "\x1b[38;5;7m" + string(kitty.Placeholder) + string(kitty.Diacritic(0)) + "\x1b[0m"
+func TestDimBackground_BlanksKittyPlaceholderLines(t *testing.T) {
+	cell := string(kitty.Placeholder) + string(kitty.Diacritic(0)) + string(kitty.Diacritic(0))
+	fg := "\x1b[38;2;0;0;5m" // id-carrying placeholder foreground
+	// Bubble-wrapped image row: border + space + 3 placeholder cells + space + border.
+	imageLine := "\x1b[90m│\x1b[0m " + fg + cell + cell + cell + "\x1b[0m \x1b[90m│\x1b[0m"
 	out := dimBackground(imageLine, true)
-	assert.Equal(t, imageLine, out)
+
+	// No placeholder runes survive, so the terminal draws no image behind the modal.
+	assert.NotContains(t, out, string(kitty.Placeholder))
+	// Border/spacing preserved with the placeholder cells collapsed to blanks.
+	assert.Equal(t, "│     │", xansi.Strip(out))
+	// Dimmed like every other background line (256-color index 240 for dark bg).
+	assert.Contains(t, out, "240")
+}
+
+func TestBlankKittyPlaceholders_CollapsesCellsToSpaces(t *testing.T) {
+	cell := string(kitty.Placeholder) + string(kitty.Diacritic(0)) + string(kitty.Diacritic(0))
+	in := "│ " + cell + cell + " │"
+	out := blankKittyPlaceholders(in)
+
+	// Each placeholder cell (rune + 2 diacritics) becomes one space; border kept.
+	assert.Equal(t, "│    │", out)
+	assert.NotContains(t, out, string(kitty.Placeholder))
+	assert.NotContains(t, out, string(kitty.Diacritic(0)))
 }
 
 func TestDimBackground_PreservesLineCountAndWidth(t *testing.T) {
@@ -47,8 +67,9 @@ func TestDimBackground_PreservesLineCountAndWidth(t *testing.T) {
 	// Non-placeholder line widths are preserved.
 	assert.Equal(t, lipgloss.Width(inLines[0]), lipgloss.Width(outLines[0]))
 	assert.Equal(t, lipgloss.Width(inLines[1]), lipgloss.Width(outLines[1]))
-	// Placeholder line is identical.
-	assert.Equal(t, inLines[2], outLines[2])
+	// Placeholder line is blanked: no placeholder rune, width preserved.
+	assert.NotContains(t, outLines[2], string(kitty.Placeholder))
+	assert.Equal(t, " ", xansi.Strip(outLines[2]))
 }
 
 func TestAnchorMenu_Outgoing_LeftOfBubble(t *testing.T) {
