@@ -216,6 +216,18 @@ func (m RootModel) updateNetworkMsg(msg tea.Msg) (RootModel, tea.Cmd) {
 		// newest-message selection fires no key event to trigger it).
 		return m.ensureGifAnimForSelection()
 
+	case kittyEncodedMsg:
+		// The encode succeeded. Write the placement to the terminal first, then
+		// mark the image ready (kittyTransmittedMsg), so the placeholder grid is
+		// only painted once the placement exists. A failed encode never reaches
+		// here, so the image is never falsely marked ready (#95).
+		seq := msg.seq
+		photoID, cols := msg.photoID, msg.cols
+		return m, tea.Sequence(
+			func() tea.Msg { return tea.Raw(seq)() },
+			func() tea.Msg { return kittyTransmittedMsg{photoID: photoID, cols: cols} },
+		)
+
 	case kittyTransmittedMsg:
 		// Placement is now on the terminal; advertise it so the next render emits
 		// the placeholder grid over an existing placement. The bubble already

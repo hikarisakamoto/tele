@@ -60,6 +60,17 @@ type FullPhotoReadyMsg struct {
 	Image   image.Image
 }
 
+// kittyEncodedMsg reports that a photo's Kitty placement was encoded
+// successfully and carries the sequence to write to the terminal. It is emitted
+// only on encode success, so a failed encode never advances to marking the image
+// ready (which would leave the cell blank while the store falsely reports Ready).
+// See issue #95.
+type kittyEncodedMsg struct {
+	photoID int64
+	cols    int
+	seq     string
+}
+
 // kittyTransmittedMsg is emitted after a photo's Kitty virtual placement has
 // been written to the terminal. Only then is the image marked ready, so the
 // placeholder grid is never painted before the placement exists.

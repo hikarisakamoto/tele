@@ -449,6 +449,7 @@ func (m RootModel) updateInner(msg tea.Msg) (tea.Model, tea.Cmd) {
 		markReadDoneMsg,
 		PhotoReadyMsg,
 		FullPhotoReadyMsg,
+		kittyEncodedMsg,
 		kittyTransmittedMsg,
 		components.OpenInViewerRequest,
 		components.OpenExternalRequest,

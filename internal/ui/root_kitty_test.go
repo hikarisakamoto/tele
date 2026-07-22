@@ -35,6 +35,43 @@ func TestTransmitPhoto_NotReadyBeforePlacementTransmitted(t *testing.T) {
 		"ready once the placement has been transmitted")
 }
 
+// A failed encode/transmit must not advance to marking the image ready: the
+// async command returns nil (no message), so no placement is written and the
+// store never reports the image ready. Otherwise the cell stays permanently
+// blank with the store falsely claiming Ready (#95).
+func TestTransmitPhoto_EncodeFailureEmitsNoMessage(t *testing.T) {
+	m := NewRootModel(nil, nil, 50, false)
+	m.imageMode = media.ModeKitty
+	m.chat.SetRenderer(media.NewKittyRenderer(m.kittyStore))
+	m.chat.SetSize(80, 24)
+
+	// A degenerate 0x0 image makes the PNG encode inside TransmitSeq fail.
+	bad := image.NewRGBA(image.Rect(0, 0, 0, 0))
+	cmd := m.transmitPhotoCmd(7, bad)
+	require.NotNil(t, cmd)
+
+	require.Nil(t, cmd(), "a failed encode must not emit a message that marks the image ready")
+	require.False(t, m.kittyStore.Ready(7, 0), "store must not report a non-transmitted image ready")
+}
+
+// A successful encode emits kittyEncodedMsg carrying the placement sequence, so
+// the update loop can write it to the terminal and then mark the image ready.
+func TestTransmitPhoto_SuccessEmitsEncodedWithSeq(t *testing.T) {
+	m := NewRootModel(nil, nil, 50, false)
+	m.imageMode = media.ModeKitty
+	m.chat.SetRenderer(media.NewKittyRenderer(m.kittyStore))
+	m.chat.SetSize(80, 24)
+
+	good := image.NewRGBA(image.Rect(0, 0, 320, 214))
+	cmd := m.transmitPhotoCmd(8, good)
+	require.NotNil(t, cmd)
+
+	enc, ok := cmd().(kittyEncodedMsg)
+	require.True(t, ok, "a successful encode emits kittyEncodedMsg")
+	require.Equal(t, int64(8), enc.photoID)
+	require.NotEmpty(t, enc.seq)
+}
+
 // During a resize the photo width changes many times in quick succession. Each
 // change must be debounced so only the final width triggers a reset+retransmit;
 // otherwise overlapping async transmits land out of order and leave the Kitty

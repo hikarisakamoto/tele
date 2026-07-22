@@ -21,22 +21,19 @@ func (m RootModel) transmitPhotoCmd(photoID int64, img image.Image) tea.Cmd {
 	// width matches the rendered placeholder width; otherwise the Kitty placement
 	// is never marked ready and the image stays a placeholder box.
 	cols, rows := m.chat.MediaBoxForID(photoID, b.Dx(), b.Dy())
-	// Order matters: write the placement to the terminal FIRST, then mark the
-	// image ready (kittyTransmittedMsg) so the next render emits placeholders
-	// only once the placement exists. Marking ready before the transmit lands
-	// races the repaint and intermittently leaves the photo mispositioned.
-	return tea.Sequence(
-		func() tea.Msg {
-			seq, err := media.TransmitSeq(id, img, cols, rows)
-			if err != nil {
-				return nil
-			}
-			return tea.Raw(seq)()
-		},
-		func() tea.Msg {
-			return kittyTransmittedMsg{photoID: photoID, cols: cols}
-		},
-	)
+	// Encode asynchronously. On success emit kittyEncodedMsg, which the update
+	// loop writes to the terminal and only then marks ready (kittyTransmittedMsg),
+	// so the placeholder grid is never painted before the placement exists. On an
+	// encode failure the command returns nil — nothing is written and the image is
+	// never marked ready, so a later reconcile can retry instead of leaving a
+	// permanently blank cell that the store falsely reports as ready (#95).
+	return func() tea.Msg {
+		seq, err := media.TransmitSeq(id, img, cols, rows)
+		if err != nil {
+			return nil
+		}
+		return kittyEncodedMsg{photoID: photoID, cols: cols, seq: seq}
+	}
 }
 
 // retransmitDebounce is the quiet period after the last photo-width change
