@@ -40,6 +40,15 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
   (search, context menu, help, etc.) dims the background. The image now fades
   out with the rest of the pane for the duration of the modal and reappears
   instantly on close, so the modal is the clear visual focus (#143)
+- Opening a photo in the fullscreen viewer no longer briefly renders it at the
+  previously viewed photo's size (Kitty). The modal's image placement is now
+  torn down on close, so each photo opens at its own dimensions (#175)
+- A rare inline-image transmit failure (Kitty) no longer leaves a permanently
+  blank cell with no retry. The image now stays a placeholder box until a later
+  repaint re-transmits it (#95)
+- Switching chats now frees terminal-side Kitty image memory deterministically,
+  deleting each image by id instead of an ambiguous delete-all that could leave
+  stale or duplicate placements on some terminals (#94)
 
 ## [1.8.2] - 2026-07-18 — Reliable package publishing
 

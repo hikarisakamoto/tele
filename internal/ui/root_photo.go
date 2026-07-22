@@ -93,13 +93,23 @@ func (m RootModel) openPhotoModal(ref store.PhotoRef, msgID int, sender string, 
 	return m, tea.Batch(cmds...)
 }
 
-// closePhotoModal tears down the overlay and drops the transmitted image.
-func (m RootModel) closePhotoModal() RootModel {
-	if m.photoViewer != nil {
-		m.imageCache.Remove(photoPlayerKey)
-		m.photoViewer = nil
+// closePhotoModal tears down the overlay and drops the transmitted image. In
+// Kitty mode it also deletes the modal's virtual placement from the terminal:
+// the modal reuses one stable image id across photos, so leaving the placement
+// alive lets the next photo resolve its placeholder cells against this photo's
+// stale geometry, rendering it at the previous photo's size (#175).
+func (m RootModel) closePhotoModal() (RootModel, tea.Cmd) {
+	if m.photoViewer == nil {
+		return m, nil
 	}
-	return m
+	var cmd tea.Cmd
+	if m.imageMode == media.ModeKitty && m.imageCache.Contains(photoPlayerKey) {
+		id := m.kittyStore.IDFor(photoPlayerKey)
+		cmd = func() tea.Msg { return tea.Raw(media.DeleteSeq(id))() }
+	}
+	m.imageCache.Remove(photoPlayerKey)
+	m.photoViewer = nil
+	return m, cmd
 }
 
 // handleFullPhotoReady swaps the modal to full quality when the download lands for
@@ -136,7 +146,7 @@ func (m RootModel) handlePhotoModalKey(keyStr string) (RootModel, tea.Cmd) {
 	// Normalize so keys work regardless of keyboard layout (e.g. Russian).
 	switch keys.NormalizeKey(keyStr) {
 	case "esc", "q":
-		return m.closePhotoModal(), nil
+		return m.closePhotoModal()
 	case "O":
 		if m.photoViewer != nil {
 			return m.openPhotoExternal(m.photoViewer.photoID)

@@ -10,6 +10,7 @@ import (
 	"github.com/sorokin-vladimir/tele/internal/store"
 	"github.com/sorokin-vladimir/tele/internal/ui/media"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func solidImage(w, h int) image.Image {
@@ -70,8 +71,32 @@ func TestOpenPhotoModal_BuildsDateLabel(t *testing.T) {
 func TestClosePhotoModal_Clears(t *testing.T) {
 	m := newSizedModel(t)
 	m.photoViewer = &photoViewer{photoID: 1}
-	m = m.closePhotoModal()
+	m, _ = m.closePhotoModal()
 	assert.Nil(t, m.photoViewer, "closing clears the overlay")
+}
+
+func TestClosePhotoModal_DeletesKittyPlacement(t *testing.T) {
+	m := newSizedModel(t)
+	m.imageMode = media.ModeKitty
+	m.photoViewer = &photoViewer{photoID: 42}
+	// Simulate an open modal that transmitted its image under the stable key.
+	m.imageCache.Add(photoPlayerKey, solidImage(100, 80))
+	id := m.kittyStore.IDFor(photoPlayerKey)
+
+	m2, cmd := m.closePhotoModal()
+	assert.Nil(t, m2.photoViewer)
+	require.NotNil(t, cmd, "closing must delete the modal's Kitty placement")
+	raw, ok := cmd().(tea.RawMsg)
+	require.True(t, ok)
+	assert.Equal(t, media.DeleteSeq(id), raw.Msg.(string), "delete the reused placement by id (#175)")
+}
+
+func TestClosePhotoModal_NoDeleteWhenNoImageTransmitted(t *testing.T) {
+	m := newSizedModel(t)
+	m.imageMode = media.ModeKitty
+	m.photoViewer = &photoViewer{photoID: 42} // spinner only; nothing transmitted
+	_, cmd := m.closePhotoModal()
+	assert.Nil(t, cmd, "no placement was transmitted, so nothing to delete")
 }
 
 func TestPhotoFooterHints(t *testing.T) {
