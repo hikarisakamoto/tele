@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !linux && !freebsd && !openbsd && !netbsd && !dragonfly
 
 package ui
 
@@ -9,5 +9,5 @@ type noopClipboardImageReader struct{}
 func (noopClipboardImageReader) ReadImage() ([]byte, string, error) { return nil, "", nil }
 
 // newOSClipboardImageReader returns the noop reader on platforms without a
-// clipboard image reader yet (Linux/Windows), so paste degrades to text.
+// clipboard image reader yet (Windows), so paste degrades to text.
 func newOSClipboardImageReader() clipboardImageReader { return noopClipboardImageReader{} }
