@@ -98,6 +98,14 @@ func opName(in bin.Encoder) string {
 // one, and a wait for RateLimited. Codes decide first because they are stable;
 // types refine the 400s.
 func classifyTgErr(e *tgerr.Error) (telerr.Kind, telerr.Reason, time.Duration) {
+	// Ahead of the codes: a refused app key arrives as a 406, which the code
+	// table would otherwise read as an expired session and send the person into
+	// a login that offers the same key again.
+	switch e.Type {
+	case "API_ID_PUBLISHED_FLOOD", "API_ID_INVALID":
+		return telerr.AppKeyBlocked, "", 0
+	}
+
 	switch {
 	case e.Code == 420:
 		// FLOOD_WAIT, FLOOD_PREMIUM_WAIT and SLOWMODE_WAIT all carry the wait
