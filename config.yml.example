@@ -1,6 +1,11 @@
+# The app key. Leave it out and tele uses the one built into the binary, which
+# is what makes a fresh install log in without a trip to my.telegram.org. Fill
+# both in to use a key of your own instead - it outranks the built-in one, and
+# it is the fix if Telegram ever stops accepting that key. See the App key
+# section of the README.
 telegram:
-  api_id: YOUR_API_ID
-  api_hash: YOUR_API_HASH
+  # api_id: 123456
+  # api_hash: "your api hash"
 
 # Where this account's state lives: the Telegram session, the local database,
 # and the lock that keeps a second instance out. Defaults to

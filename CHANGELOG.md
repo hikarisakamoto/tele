@@ -11,6 +11,21 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Fixed
+
+- `brew install tele` from homebrew-core now works out of the box. A build
+  compiled from source used to exit at startup asking to go and register a
+  Telegram application before it drew anything; it starts and reaches the login
+  screen like every other build. The same applies to the Nix flake, the BSD
+  ports and a plain `go build`.
+- Telegram refusing the application rather than the session is now reported as
+  that. It used to read as "session expired, sign in again", which sent people
+  into a login that could not succeed and parked queued messages on a session
+  that was never coming back.
+- The Nix flake reports the version it was built from. It passed the version to
+  a symbol that does not exist, which the linker ignores without complaint, so
+  every flake build called itself `dev`.
+
 ## [1.11.2] - 2026-08-21
 
 Entries marked *already in 1.11.1* went out in that release and were left out of

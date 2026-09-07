@@ -35,7 +35,7 @@
 
 ---
 
-## Why tele?
+## Why `tele`?
 
 Telegram Desktop, the web client, and mobile apps are designed around mouse-first interaction.
 
@@ -56,7 +56,7 @@ It also runs lean - typically ~50MB RSS at idle vs several hundred MB for deskto
 
 ---
 
-| Feature              | tele                    | Telegram Desktop | Web        |
+| Feature              | `tele`                  | Telegram Desktop | Web        |
 | -------------------- | ----------------------- | ---------------- | ---------- |
 | Terminal-native      | ✅                      | ❌               | ❌         |
 | Keyboard-first       | ✅                      | ⚠️ partial       | ⚠️ partial |
@@ -82,15 +82,15 @@ via [gotd/td](https://github.com/gotd/td) and builds without cgo, so there is no
 C++ library to download or compile, no interpreter to keep on your machine, and
 no chain of optional helper programs to install before the app is fully usable.
 
-|                    | `tele`                                                                       | [tgt](https://github.com/FedericoBruzzone/tgt)                                                                    | [tg](https://github.com/paul-nameless/tg) · [tuigram](https://codeberg.org/Yehoslav/tuigram)                                          |
-| ------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Language           | Go                                                                           | Rust                                                                                                              | Python                                                                                                                               |
-| Telegram backend   | gotd/td - MTProto in pure Go                                                 | TDLib                                                                                                             | TDLib via `python-telegram`                                                                                                          |
-| What you install   | one static binary                                                            | `cargo install` plus TDLib downloaded or built; CMake to get voice notes; a system `chafa` to get inline images    | a Python 3.9+/3.10+ runtime plus TDLib; `ffmpeg`, `terminal-notifier`, `urlview`, `ranger`/`fzf` for the full feature set             |
-| Packaging          | brew, apt, dnf, zypper, apk, nix, scoop, winget, signed deb/rpm               | crates.io, AUR, nix, Docker                                                                                       | PyPI, AUR, Docker                                                                                                                    |
-| Inline photos      | Kitty graphics protocol at full quality, ANSI block-art fallback              | `chafa` block art, behind an optional build feature                                                               | handed to an external viewer via mailcap                                                                                             |
-| Windows            | binary, Scoop, winget                                                        | supported                                                                                                         | not practical                                                                                                                        |
-| Release cadence    | weekly stable releases plus a separate beta channel                          | latest release is `v1.0.0-rc1`; most recent commits are dependency bumps                                          | `tg` ships in bursts months apart; `tuigram` is a fork of a fork                                                                      |
+|                  | `tele`                                                           | [tgt](https://github.com/FedericoBruzzone/tgt)                                                                  | [tg](https://github.com/paul-nameless/tg) · [tuigram](https://codeberg.org/Yehoslav/tuigram)                              |
+| ---------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Language         | Go                                                               | Rust                                                                                                            | Python                                                                                                                    |
+| Telegram backend | gotd/td - MTProto in pure Go                                     | TDLib                                                                                                           | TDLib via `python-telegram`                                                                                               |
+| What you install | one static binary                                                | `cargo install` plus TDLib downloaded or built; CMake to get voice notes; a system `chafa` to get inline images | a Python 3.9+/3.10+ runtime plus TDLib; `ffmpeg`, `terminal-notifier`, `urlview`, `ranger`/`fzf` for the full feature set |
+| Packaging        | brew, apt, dnf, zypper, apk, nix, scoop, winget, signed deb/rpm  | crates.io, AUR, nix, Docker                                                                                     | PyPI, AUR, Docker                                                                                                         |
+| Inline photos    | Kitty graphics protocol at full quality, ANSI block-art fallback | `chafa` block art, behind an optional build feature                                                             | handed to an external viewer via mailcap                                                                                  |
+| Windows          | binary, Scoop, winget                                            | supported                                                                                                       | not practical                                                                                                             |
+| Release cadence  | weekly stable releases plus a separate beta channel              | latest release is `v1.0.0-rc1`; most recent commits are dependency bumps                                        | `tg` ships in bursts months apart; `tuigram` is a fork of a fork                                                          |
 
 Beyond packaging, `tele` covers parts of modern Telegram that none of the three
 list as supported: **reactions**, **chat folders**, **grouped album sending**,
@@ -194,8 +194,21 @@ server. Both degrade gracefully when unavailable.
 ### macOS / Linux - Homebrew
 
 ```sh
-brew install tele
+brew install tele  # from homebrew/core
 ```
+
+Or from `tele`'s own tap:
+
+```sh
+brew tap sorokin-vladimir/tap
+brew trust sorokin-vladimir/tap
+brew install sorokin-vladimir/tap/tele
+```
+
+Both formula names are written out in full on purpose. Once the tap is tapped, a
+plain `brew install tele` picks the tap's formula and mentions it only in a
+`Warning: tele shadows homebrew/core/tele` line that is easy to scroll past. The
+two differ in one way worth knowing about, described under [App key](#app-key).
 
 ### macOS / Linux - Homebrew (beta channel)
 
@@ -347,6 +360,32 @@ Then prompts for:
 - SMS code
 - optional 2FA password
 
+### App key
+
+`tele` reaches Telegram with an app key: an `api_id` and `api_hash` pair that
+identifies the application rather than you. There is nothing to do about it -
+every build carries one, and the login above works as it stands.
+
+Builds compiled from published source - homebrew-core, the Nix flake, a BSD
+port, your own `go build` - share a single key between everyone who builds
+`tele` that way. Telegram can refuse a key it considers too widely shared. If it
+does, `tele` says `app key blocked by Telegram` rather than claiming your session
+expired, and there are two ways past it. Take whichever is less trouble:
+
+Register a key of your own at [my.telegram.org](https://my.telegram.org) and put
+it in `~/.config/tele/config.yml`. A key you supply always outranks the built-in
+one:
+
+```yaml
+telegram:
+  api_id: 123456
+  api_hash: "your api hash"
+```
+
+Or install an official build, which carries a key of its own: the Homebrew tap
+above, the install script, apt, dnf, apk, Snap, Scoop and winget all ship
+binaries built by `tele`'s release pipeline.
+
 ---
 
 ## Flags
@@ -391,15 +430,15 @@ Full reference: [docs/keybindings.md](docs/keybindings.md)
 
 ## Configuration
 
-Press `,` for the settings overlay: every setting tele has, grouped and ordered
+Press `,` for the settings overlay: every setting `tele` has, grouped and ordered
 the way the config file is, so a row you see there is found in the file at the
 same path. It shows what each one is worth now, marks the ones nobody has chosen
-(`[default]`), and says when a change takes hold - at once, `[next]` time tele
+(`[default]`), and says when a change takes hold - at once, `[next]` time `tele`
 does that thing, or after a `[restart]`. Keybindings are listed there too, with
 what your config changed and what it changed from.
 
 Changes made there are written straight into `config.yml`, keeping your
-comments, blank lines and anything in the file tele does not know about. Editing
+comments, blank lines and anything in the file `tele` does not know about. Editing
 the file in an editor and editing it in the overlay are the same act: both end
 with the file being read again, so the two can never disagree. `enter` changes
 the setting under the cursor, `r` puts it back to its default, and `esc` closes.
@@ -466,7 +505,7 @@ automatically on first run - nothing is lost and you stay logged in.
 
 ### Themes
 
-tele holds two themes at once and switches between them as your terminal
+`tele` holds two themes at once and switches between them as your terminal
 background changes: `ui.theme.dark` and `ui.theme.light`. Leave `ui.theme` out
 and you get the built-in `tele-dark` and `tele-light`; name a single theme
 (`theme: gruvbox-dark`) to use it whatever the background is.
@@ -542,10 +581,10 @@ Planned work lives on the public [**project board**](https://github.com/users/so
 grouped into [milestones](https://github.com/sorokin-vladimir/tele/milestones). Milestones track
 minor lines (`v1.9`, `v1.10`, …); patch releases ship incrementally within a line as fixes land.
 
-| Release             | Focus                                                                                                                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v1.9` _(in work)_  | Offline history & media internals - SQLite-backed history for instant chat open, on-disk image LRU cache, album sending, `?` shortcuts help modal, Kitty renderer fixes                                  |
-| `v1.10` _(planned)_ | Search & chat polish - full-text history search, command palette, in-chat grep, pinned messages, search-modal preview, richer reply UX, plus image-modal and chat-list fixes                             |
+| Release             | Focus                                                                                                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v1.9` _(in work)_  | Offline history & media internals - SQLite-backed history for instant chat open, on-disk image LRU cache, album sending, `?` shortcuts help modal, Kitty renderer fixes                                                         |
+| `v1.10` _(planned)_ | Search & chat polish - full-text history search, command palette, in-chat grep, pinned messages, search-modal preview, richer reply UX, plus image-modal and chat-list fixes                                                    |
 | `Backlog`           | Power-user & platform - color themes (gruvbox / nord / catppuccin), extended vim motions, scheduled sending, bot commands & inline keyboards, voice and round-video messages, notification click routing, AUR & Snap publishing |
 
 Work is also categorized by theme (Security & Reliability, Architecture & Performance,
@@ -555,11 +594,20 @@ Feature Completeness, Power User & Polish) via the board's **Theme** field.
 
 ## Build from source
 
-Requires Go 1.26+ and your own [Telegram API credentials](https://my.telegram.org).
+Requires Go 1.26+. The binary this produces carries the shared app key described
+under [App key](#app-key), so it runs without you registering anything:
 
 ```sh
 git clone https://github.com/sorokin-vladimir/tele
 cd tele
+go build -o tele ./cmd/tele/
+```
+
+To build against [a key of your own](https://my.telegram.org) instead of the
+shared one, pass it in - what you supply here outranks the built-in key for that
+binary, the way a key in the config outranks both:
+
+```sh
 go build \
   -ldflags "-X main.buildAPIID=YOUR_API_ID -X main.buildAPIHash=YOUR_API_HASH" \
   -o tele ./cmd/tele/
