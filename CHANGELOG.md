@@ -11,6 +11,26 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- The desktop notification and the in-app toast are switched separately:
+  `ui.notifications.desktop` and `ui.notifications.toast`, both on. A
+  notification daemon can only reach the first, so turning the second off was
+  not possible from anywhere. With both off a new message still highlights its
+  row and moves the chat up - that is the message arriving, not an
+  interruption.
+- `ui.toasts` is documented. The keys placing toasts in a corner and capping how
+  many show at once have worked since 1.8.1 but appeared in neither the README
+  nor `config.yml.example`, so the only way to find them was to read the source.
+
+### Changed
+
+- `ui.notification_preview` is now `ui.notifications.preview`, alongside the two
+  switches. The old spelling is still read and tele says so once; nothing
+  changes for you until you move the line. Its help said the setting was about
+  desktop notifications - it applies to the toast as well, and has since 1.10,
+  when both were given the same rendered text.
+
 ## [1.11.3] - 2026-09-08
 
 ### Added

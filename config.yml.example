@@ -14,7 +14,6 @@ telegram:
 
 ui:
   history_limit: 50
-  notification_preview: true  # set false to omit message text from desktop notifications
 
   # Themes. Leaving this out gives the built-in tele-dark and tele-light,
   # switched by the terminal background. Name one theme to use it whatever the
@@ -29,6 +28,25 @@ ui:
   # theme:
   #   dark: gruvbox-dark
   #   light: solarized-light
+
+  # A new message reaches you two ways, switched separately here. Neither
+  # switch touches the chat list: with both off, the row still highlights and
+  # the chat still moves up.
+  notifications:
+    desktop: true   # hand it to the OS notification service
+    toast: true     # draw it in a corner of tele's own window
+    # What a notification says, rather than where it goes: false sends the
+    # sender's name and no message text, to both of the above.
+    preview: true
+
+  # Where toasts appear. Errors, warnings and confirmations go to error_zone;
+  # notifications go to notify_zone. Both take bottom-right or top-right, and
+  # naming the same corner for both stacks them together. The bottom-left
+  # corner is not offered: it is kept for the key-press overlay.
+  toasts:
+    error_zone: bottom-right
+    notify_zone: top-right
+    max_visible: 3  # per corner; the rest are counted, not drawn
 
 photos:
   eager_full_quality: true  # download full resolution in background on chat open

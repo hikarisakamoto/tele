@@ -452,10 +452,19 @@ they are a deliberate edit to the file rather than a keystroke.
 
 ui:
   history_limit: 50 # messages fetched per chat on open
-  notification_preview: true # set false to omit message text from desktop notifications
   # theme: # omit for the built-in tele-dark / tele-light
   #   dark: my-dark # ~/.config/tele/themes/my-dark.yml
   #   light: my-light
+
+  notifications:
+    desktop: true # hand it to the OS notification service
+    toast: true # draw it in a corner of tele's own window
+    preview: true # set false to send the sender's name and no message text
+
+  toasts:
+    error_zone: bottom-right # bottom-right | top-right
+    notify_zone: top-right # bottom-right | top-right
+    max_visible: 3 # per corner; the rest are counted, not drawn
 
 photos:
   mode: auto # auto | kitty | blocks - inline image renderer
@@ -484,6 +493,28 @@ The older `telegram.session_file` key still works and keeps the session where it
 points, but it is deprecated and will be removed in the next release. If you have
 not set it, your existing session and database are moved into the state directory
 automatically on first run - nothing is lost and you stay logged in.
+
+A new message reaches you two ways, and `ui.notifications` switches them
+separately. `desktop` hands the notification to your operating system's
+notification service, where it survives `tele` not being on screen and can be
+routed by your own notification daemon. `toast` draws it in a corner of `tele`'s
+own window, which no daemon rule can reach. Turn either off, or both.
+
+Neither switch touches the chat list: with both off, a new message still
+highlights its row and moves the chat up. That is the message arriving, not an
+interruption - the same line Telegram's own mute draws.
+
+`preview` is about what a notification says rather than where it goes, so it
+applies to both: off, the desktop notification and the toast alike carry the
+sender's name and nothing else. The body is rendered once and handed to each
+unchanged, which is what keeps the two from ever disagreeing about the same
+message.
+
+> **`ui.toasts`** places the toasts themselves. Errors, warnings and
+> confirmations go to `error_zone`; notifications go to `notify_zone`. Both take
+> `bottom-right` or `top-right` and may name the same corner, in which case they
+> stack together. The bottom-left corner is not offered: it is kept for the
+> key-press overlay.
 
 > **`kitty_placement_cap`** bounds how many Kitty image placements are live on
 > the terminal simultaneously. Only on-screen images (plus a few recently

@@ -103,7 +103,7 @@ var registry = []settings.Entry{
 		Key:     "ui.notifications.preview",
 		Group:   "ui.notifications",
 		Label:   "Notification preview",
-		Help:    "Whether a desktop notification carries the message text. Off sends the sender's name and nothing else.",
+		Help:    "Whether a notification carries the message text, in the desktop notification and the toast alike - the text is rendered once and both are given the same one. Off sends the sender's name and nothing else.",
 		Widget:  settings.Toggle,
 		Applies: settings.Immediate,
 	},
