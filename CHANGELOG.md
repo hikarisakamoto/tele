@@ -11,6 +11,13 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- `tele` is in homebrew-core: `brew install tele` works without tapping
+  anything first. The tap stays where it was and still carries the beta
+  channel; the two builds differ in one way, described under App key in the
+  README.
+
 ### Fixed
 
 - `brew install tele` from homebrew-core now works out of the box. A build
