@@ -11,6 +11,8 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+## [1.11.3] - 2026-09-08
+
 ### Added
 
 - `tele` is in homebrew-core: `brew install tele` works without tapping
