@@ -152,6 +152,19 @@ func TestNotifications_TheNewPreviewKeyOutranksTheOld(t *testing.T) {
 	assert.Contains(t, cfg.Warnings[0].Text, "ignored")
 }
 
+// The old key is out of the registry, so repairIllegal no longer covers it. A
+// value the app cannot read must still land on the default and be said out
+// loud: reading it as false would switch previews off on a typo.
+func TestNotifications_AnUnreadableOldPreviewKeyFallsToTheDefault(t *testing.T) {
+	cfg := loadWithUI(t, "  notification_preview: sometimes\n")
+
+	assert.True(t, cfg.UI.Notifications.Preview, "the default, not false")
+	require.Len(t, cfg.Warnings, 1)
+	assert.Contains(t, cfg.Warnings[0].Text, "ui.notification_preview")
+	assert.Contains(t, cfg.Warnings[0].Text, "using true instead")
+	assert.Empty(t, cfg.Warnings[0].ID, "still wrong, so said at every launch")
+}
+
 // A file that never knew the old key is a quiet file.
 func TestNotifications_TheNewKeyAloneWarnsAboutNothing(t *testing.T) {
 	cfg := loadWithUI(t, "  notifications:\n    desktop: false\n    toast: true\n")

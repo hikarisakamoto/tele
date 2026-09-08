@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+
+	"github.com/sorokin-vladimir/tele/internal/settings"
 )
 
 type TelegramConfig struct {
@@ -54,8 +56,11 @@ type NotificationsConfig struct {
 	// warnings and confirmations are unaffected: silencing an interruption is
 	// not silencing a report that something went wrong.
 	Toast bool `mapstructure:"toast"`
-	// Preview includes the message text in the notification. Set false to send
-	// only the sender name (#80).
+	// Preview includes the message text in the notification. It reaches both
+	// sinks, because the body is rendered once and handed to each unchanged:
+	// off sends the sender's name and nothing else to the desktop and to the
+	// toast alike. Set false to keep message text out of places that persist it
+	// (#80).
 	Preview bool `mapstructure:"preview"`
 }
 
@@ -269,6 +274,15 @@ func (c *Config) resolveNotifications(v *viper.Viper) {
 	if v.InConfig("ui.notifications.preview") {
 		c.warnOnce("config.ui.notification_preview.ignored",
 			"ui.notification_preview is ignored because ui.notifications.preview is set — you can delete the old line")
+		return
+	}
+	// The old key is no longer declared, so repairIllegal never sees it. A value
+	// the app cannot read must not quietly become false: it falls to the default
+	// the way a repair does, and says so at every launch rather than once,
+	// because unlike a moved line it is still wrong.
+	old := settings.Entry{Key: deprecatedNotificationPreview, Widget: settings.Toggle}
+	if err := old.Validate(v.Get(deprecatedNotificationPreview)); err != nil {
+		c.warn("%s: %v; using %v instead", deprecatedNotificationPreview, err, c.UI.Notifications.Preview)
 		return
 	}
 	c.UI.Notifications.Preview = v.GetBool(deprecatedNotificationPreview)
