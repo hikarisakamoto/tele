@@ -6,7 +6,8 @@ import (
 	"github.com/sorokin-vladimir/tele/internal/store"
 )
 
-// Notifier sends OS desktop notifications.
+// Notifier sends desktop notifications: the sink that reaches the operating
+// system's own notification service.
 type Notifier interface {
 	Notify(title, body string) error
 }

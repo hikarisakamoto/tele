@@ -36,8 +36,13 @@ func (o *Owner) RunUpdates(ctx context.Context) {
 }
 
 // handleEvent applies one event and decides what the user hears about it. One
-// decision, one clock, two sinks: splitting it in two is how the OS banner and
-// the in-app toast used to drift apart (#192).
+// decision, one clock, two sinks: splitting it in two is how the desktop
+// notification and the in-app toast used to drift apart (#192).
+//
+// Each sink can be switched off, and the switches are read here rather than
+// where a sink delivers. A switch says where a notification goes, never whether
+// it was decided, so the decision above it never learns about them (#249, ADR
+// 0013).
 func (o *Owner) handleEvent(evt store.Event) {
 	// Applying commits, and the owner's commit listener publishes the resulting
 	// deltas. Nothing is forwarded from here.
@@ -45,12 +50,20 @@ func (o *Owner) handleEvent(evt store.Event) {
 
 	focused := o.focus.focused
 	now := time.Now()
+	// One snapshot for the decision and both gates: a reload between two reads
+	// would deliver a body rendered under one config to a sink chosen under
+	// another.
+	notify := o.Config().UI.Notifications
 	if n, ok := decideNotification(o.state.Store(), evt, focused,
-		o.Config().UI.Notifications.Preview, now); ok {
-		if err := o.notifier.Notify(n.Title, n.Body); err != nil {
-			o.log.Warn("OS notification failed", zap.Error(err))
+		notify.Preview, now); ok {
+		if notify.Desktop {
+			if err := o.notifier.Notify(n.Title, n.Body); err != nil {
+				o.log.Warn("desktop notification failed", zap.Error(err))
+			}
 		}
-		o.publishNotification(n)
+		if notify.Toast {
+			o.publishNotification(n)
+		}
 	}
 	o.publishIncoming(evt, focused)
 }
