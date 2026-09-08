@@ -38,7 +38,7 @@ func newTestOwnerNotified(t *testing.T, n Notifier) (*Owner, store.Store) {
 	t.Helper()
 	st := store.NewMemory()
 	cfg := &config.Config{}
-	cfg.UI.NotificationPreview = true
+	cfg.UI.Notifications.Preview = true
 	return New(cfg, zap.NewNop(), state.New(st), nil, n), st
 }
 

@@ -73,14 +73,6 @@ var registry = []settings.Entry{
 		Max:     500,
 	},
 	{
-		Key:     "ui.notification_preview",
-		Group:   "ui",
-		Label:   "Notification preview",
-		Help:    "Whether a desktop notification carries the message text. Off sends the sender's name and nothing else.",
-		Widget:  settings.Toggle,
-		Applies: settings.Immediate,
-	},
-	{
 		// Last of the ui keys, where every template tele has ever written puts
 		// it, so the overlay and the file read in the same order.
 		Key:     "ui.theme",
@@ -92,10 +84,34 @@ var registry = []settings.Entry{
 		Slots:   []string{"dark", "light"},
 	},
 	{
+		Key:     "ui.notifications.desktop",
+		Group:   "ui.notifications",
+		Label:   "Desktop notifications",
+		Help:    "Whether a notification is handed to the operating system, where it outlives tele not being on screen. Off leaves the in-app toast alone, and neither switch touches the chat list: the row still highlights and moves up.",
+		Widget:  settings.Toggle,
+		Applies: settings.Immediate,
+	},
+	{
+		Key:     "ui.notifications.toast",
+		Group:   "ui.notifications",
+		Label:   "In-app toasts",
+		Help:    "Whether a notification is drawn in a corner of tele's own window. Errors and confirmations still appear: this silences the interruption, not the reports.",
+		Widget:  settings.Toggle,
+		Applies: settings.Immediate,
+	},
+	{
+		Key:     "ui.notifications.preview",
+		Group:   "ui.notifications",
+		Label:   "Notification preview",
+		Help:    "Whether a desktop notification carries the message text. Off sends the sender's name and nothing else.",
+		Widget:  settings.Toggle,
+		Applies: settings.Immediate,
+	},
+	{
 		Key:     "ui.toasts.error_zone",
 		Group:   "ui.toasts",
 		Label:   "Error zone",
-		Help:    "The corner errors appear in.",
+		Help:    "The corner errors appear in. The bottom-left corner is not offered: it is kept for the key-press overlay.",
 		Widget:  settings.Choice,
 		Applies: settings.Immediate,
 		// The bottom-left corner is spoken for: it is where the demo mode's
@@ -107,7 +123,7 @@ var registry = []settings.Entry{
 		Key:     "ui.toasts.notify_zone",
 		Group:   "ui.toasts",
 		Label:   "Notification zone",
-		Help:    "The corner notifications appear in. The same corner as errors is allowed; they then stack together.",
+		Help:    "The corner notifications appear in. The same corner as errors is allowed; they then stack together. The bottom-left corner is not offered: it is kept for the key-press overlay.",
 		Widget:  settings.Choice,
 		Applies: settings.Immediate,
 		Choices: []string{"bottom-right", "top-right"},

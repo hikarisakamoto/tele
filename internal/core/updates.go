@@ -46,7 +46,7 @@ func (o *Owner) handleEvent(evt store.Event) {
 	focused := o.focus.focused
 	now := time.Now()
 	if n, ok := decideNotification(o.state.Store(), evt, focused,
-		o.Config().UI.NotificationPreview, now); ok {
+		o.Config().UI.Notifications.Preview, now); ok {
 		if err := o.notifier.Notify(n.Title, n.Body); err != nil {
 			o.log.Warn("OS notification failed", zap.Error(err))
 		}

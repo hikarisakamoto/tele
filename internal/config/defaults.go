@@ -13,7 +13,9 @@ import "github.com/spf13/viper"
 func defaultValues() map[string]any {
 	return map[string]any{
 		"ui.history_limit":           50,
-		"ui.notification_preview":    true,
+		"ui.notifications.desktop":   true,
+		"ui.notifications.toast":     true,
+		"ui.notifications.preview":   true,
 		"ui.toasts.error_zone":       "bottom-right",
 		"ui.toasts.notify_zone":      "top-right",
 		"ui.toasts.max_visible":      3,

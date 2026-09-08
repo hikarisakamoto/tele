@@ -29,19 +29,41 @@ type UIConfig struct {
 	// Theme is kept as written because its two spellings mean different things:
 	// a name puts that theme in both slots, a map fills the slots it names. Read
 	// ThemeSlots instead; resolveTheme fills it.
-	Theme        any        `mapstructure:"theme"`
-	ThemeSlots   ThemeSlots `mapstructure:"-"`
-	DateFormat   string     `mapstructure:"date_format"`
-	HistoryLimit int        `mapstructure:"history_limit"`
-	// NotificationPreview controls whether the message text is included in
-	// desktop notifications. Set false to send only the sender name (#80).
-	NotificationPreview bool         `mapstructure:"notification_preview"`
-	Toasts              ToastsConfig `mapstructure:"toasts"`
+	Theme         any                 `mapstructure:"theme"`
+	ThemeSlots    ThemeSlots          `mapstructure:"-"`
+	DateFormat    string              `mapstructure:"date_format"`
+	HistoryLimit  int                 `mapstructure:"history_limit"`
+	Notifications NotificationsConfig `mapstructure:"notifications"`
+	Toasts        ToastsConfig        `mapstructure:"toasts"`
+}
+
+// NotificationsConfig governs the one decision that an event deserves the
+// person's attention: which sinks carry it, and how much it says. Desktop and
+// Toast are the two sinks and are switched independently, because one of them
+// is reachable by the platform's own tooling and the other is not (#249). Both
+// gates live at the fork in the owner, never at the sink that draws — see ADR
+// 0013.
+//
+// Neither reaches the chat list. A row still highlights and takes its new place
+// with both switched off: that is the message arriving, not an interruption.
+type NotificationsConfig struct {
+	// Desktop hands the notification to the operating system's notification
+	// service, where it outlives tele not being on screen.
+	Desktop bool `mapstructure:"desktop"`
+	// Toast draws the notification in a corner of tele's own window. Errors,
+	// warnings and confirmations are unaffected: silencing an interruption is
+	// not silencing a report that something went wrong.
+	Toast bool `mapstructure:"toast"`
+	// Preview includes the message text in the notification. Set false to send
+	// only the sender name (#80).
+	Preview bool `mapstructure:"preview"`
 }
 
 // ToastsConfig controls the floating toast component (#87). Zone strings are
-// "bottom-right", "top-right", or "bottom-left"; unknown values fall back to
-// the default at the UI layer.
+// "bottom-right" or "top-right"; unknown values fall back to the default at the
+// UI layer. ZoneBottomLeft exists as a position but is not one of them: that
+// corner is kept for the key-press overlay (#83), so nothing offers it and
+// writing it here lands in the default.
 type ToastsConfig struct {
 	ErrorZone  string `mapstructure:"error_zone"`
 	NotifyZone string `mapstructure:"notify_zone"`
@@ -156,6 +178,7 @@ func Load(path, defaultStateDir string) (*Config, error) {
 	}
 	cfg.Warnings = append(cfg.Warnings, repairs...)
 	cfg.named = namedInFile(v)
+	cfg.resolveNotifications(v)
 	cfg.resolveState(defaultStateDir)
 	cfg.ThemesDir = filepath.Join(filepath.Dir(path), themesDirName)
 	cfg.resolveTheme()
@@ -223,6 +246,34 @@ func (c *Config) themeName(s string) string {
 		return ""
 	}
 	return name
+}
+
+// deprecatedNotificationPreview is where the message-text switch lived before
+// the notification settings became a group of their own. It is read for as long
+// as configs written by older builds are still out there.
+const deprecatedNotificationPreview = "ui.notification_preview"
+
+// resolveNotifications carries the old spelling of the preview switch into the
+// group that replaced it. The new key outranks the old one when a file names
+// both, which is how state_dir already outranks telegram.session_file: one
+// spelling is canonical and the other is a leftover, rather than the two
+// racing.
+//
+// Both notices are shown once. Neither describes something that is still wrong
+// — the config behaves as it always did — so what is left to do is tidy a line,
+// and saying so at every launch would be nagging.
+func (c *Config) resolveNotifications(v *viper.Viper) {
+	if !v.InConfig(deprecatedNotificationPreview) {
+		return
+	}
+	if v.InConfig("ui.notifications.preview") {
+		c.warnOnce("config.ui.notification_preview.ignored",
+			"ui.notification_preview is ignored because ui.notifications.preview is set — you can delete the old line")
+		return
+	}
+	c.UI.Notifications.Preview = v.GetBool(deprecatedNotificationPreview)
+	c.warnOnce("config.ui.notification_preview.moved",
+		"ui.notification_preview has moved to ui.notifications.preview and is read from where it is — nothing has changed for you; move the line when convenient")
 }
 
 // resolveState fixes StateDir and Telegram.SessionFile. Precedence:
