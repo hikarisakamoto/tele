@@ -31,6 +31,14 @@ type stubConn struct {
 	server   []domain.Message
 	fwdCalls atomic.Int32
 	fwdErr   error
+	// dialogs is what the dialog list comes back with, for a gap scan.
+	dialogs     []domain.Chat
+	dialogCalls atomic.Int32
+}
+
+func (s *stubConn) GetDialogs(context.Context) ([]domain.Chat, error) {
+	s.dialogCalls.Add(1)
+	return s.dialogs, nil
 }
 
 func (s *stubConn) Connect(context.Context, *config.Config, *internaltg.AuthFlow, chan<- struct{}, func(int64, string)) error {

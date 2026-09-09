@@ -52,22 +52,54 @@ func (s *SQLiteStore) MarkGap(chatID int64, afterMsgID int) {
 	}
 }
 
-// AdvanceGap moves an open gap's position forward, which is how a repair
-// records the ground it has covered: a page that lands is not fetched again,
-// and an interrupted repair resumes where it stopped rather than from the
-// beginning. It never creates a record and never moves one backwards, so it
-// cannot resurrect a gap that was closed while the page was in flight.
-func (s *SQLiteStore) AdvanceGap(chatID int64, afterMsgID int) {
-	_, err := s.db.Exec(
-		`UPDATE chat_gap SET after_msg_id = ? WHERE chat_id = ? AND after_msg_id < ?`,
-		afterMsgID, chatID, afterMsgID)
+// AdvanceGap moves an open gap from one position to a later one, which is how a
+// repair records the ground it has covered: a page that lands is not fetched
+// again, and an interrupted repair resumes where it stopped rather than from
+// the beginning.
+//
+// It moves the record only while it still says what the repair last saw, and
+// reports whether it did. That is what keeps a repair from writing over a hole
+// that opened underneath it: a channel losing a second range mid-repair records
+// an earlier position, and advancing past that blindly would erase the only
+// evidence of it. The same condition means a repair cannot resurrect a gap that
+// was closed while its page was in flight.
+func (s *SQLiteStore) AdvanceGap(chatID int64, from, to int) bool {
+	res, err := s.db.Exec(
+		`UPDATE chat_gap SET after_msg_id = ? WHERE chat_id = ? AND after_msg_id = ?`,
+		to, chatID, from)
 	if err != nil {
 		s.log.Error("advance chat gap failed", zap.Int64("chat_id", chatID), zap.Error(err))
+		return false
 	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		s.log.Error("advance chat gap failed", zap.Int64("chat_id", chatID), zap.Error(err))
+		return false
+	}
+	return n > 0
 }
 
-// ClearGap forgets a chat's gap. It is for the repair that reached the tail and
-// for the tail reload, which throws away the history the gap was a hole in.
+// CloseGap forgets a gap that still stands where the repair left it, and
+// reports whether it did. A hole recorded underneath a finishing repair is a
+// hole nobody has closed, and it outlives the repair that did not know about
+// it.
+func (s *SQLiteStore) CloseGap(chatID int64, at int) bool {
+	res, err := s.db.Exec(`DELETE FROM chat_gap WHERE chat_id = ? AND after_msg_id = ?`, chatID, at)
+	if err != nil {
+		s.log.Error("close chat gap failed", zap.Int64("chat_id", chatID), zap.Error(err))
+		return false
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		s.log.Error("close chat gap failed", zap.Int64("chat_id", chatID), zap.Error(err))
+		return false
+	}
+	return n > 0
+}
+
+// ClearGap forgets a chat's gap whatever it says. It is for the tail reload,
+// which throws away the history the gap was a hole in, so no position in that
+// history means anything afterwards.
 func (s *SQLiteStore) ClearGap(chatID int64) {
 	if _, err := s.db.Exec(`DELETE FROM chat_gap WHERE chat_id = ?`, chatID); err != nil {
 		s.log.Error("clear chat gap failed", zap.Int64("chat_id", chatID), zap.Error(err))

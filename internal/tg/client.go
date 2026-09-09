@@ -103,6 +103,39 @@ func (c *GotdClient) Connect(ctx context.Context, cfg *config.Config, af *AuthFl
 		// gotd v0.154.0 changed Logger from *zap.Logger to gotd/log.Logger;
 		// wrap our zap logger with the logzap adapter to keep zap out of gotd's core graph.
 		Logger: logzap.New(c.log.Named("updates")),
+		// gotd resets the channel's position and carries on, and says so here.
+		// The messages between the old position and the new one are not in that
+		// difference and never will be: recovering them is the application's
+		// job, and the manager documents that it is not doing it. Left to the
+		// default this is a log line and a hole in the chat (#262).
+		OnChannelTooLong: func(channelID int64) {
+			c.log.Warn("channel fell too far behind; recording a gap", zap.Int64("channel_id", channelID))
+			// mustDeliver rather than droppable, and for both reasons: a
+			// dropped gap is a hole nothing will ever look for again, and the
+			// mark has to be taken before the messages that follow it move the
+			// tail past the hole. Same channel as those messages is the only
+			// way the order is guaranteed.
+			select {
+			case c.mustDeliver <- store.Event{Kind: store.EventChannelGap, ChatID: channelID}:
+			case <-ctx.Done():
+			}
+		},
+		// The same, for the account's own state, which every chat that is not a
+		// channel shares. It names nobody, so the receiver has to go and look.
+		OnTooLong: func() {
+			c.log.Warn("account state fell too far behind; scanning for gaps")
+			select {
+			case c.mustDeliver <- store.Event{Kind: store.EventGapScan}:
+			case <-ctx.Done():
+			}
+		},
+		// Not a gap but a channel nothing is listening to for the rest of the
+		// session. Wired only so it is visible: without it the default logger
+		// swallows it and the channel goes quiet with no explanation.
+		OnLoadChannelStateFailed: func(channelID int64) {
+			c.log.Error("channel state could not be loaded; it will receive no updates this session",
+				zap.Int64("channel_id", channelID))
+		},
 	}
 	// Persist channel access hashes so channels are re-registered at startup and
 	// UpdateChannelTooLong after a long idle is acted upon instead of dropped

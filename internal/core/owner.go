@@ -66,6 +66,10 @@ type Owner struct {
 	// chunks stack into a repeating date range (issue #120).
 	fetchMu  sync.Mutex
 	fetching map[project.SubID]bool
+	// repairing guards one in-flight gap repair per chat. A repair belongs to
+	// the chat rather than to a window: it is started by opening one, and also
+	// by Telegram saying a channel fell behind while nobody was looking at it.
+	repairing map[int64]bool
 
 	// focus is what each attached client is showing. The notification policy's
 	// only view of clients (#192).
@@ -112,6 +116,7 @@ func New(cfg *config.Config, log *zap.Logger, st *state.State, client Connection
 		readyCh:       make(chan struct{}),
 		ctx:           context.Background(),
 		fetching:      make(map[project.SubID]bool),
+		repairing:     make(map[int64]bool),
 		focus:         newFocusRegistry(),
 		outboxWake:    make(chan struct{}, 1),
 		uploadCancels: make(map[string]context.CancelFunc),

@@ -67,35 +67,59 @@ func TestAdvanceGap_MovesTheRepairForward(t *testing.T) {
 	s := gapStore(t)
 	s.MarkGap(7, 300)
 
-	s.AdvanceGap(7, 400)
+	assert.True(t, s.AdvanceGap(7, 300, 400))
 
 	after, _ := s.Gap(7)
 	assert.Equal(t, 400, after)
 }
 
-// A page that lands late must not undo the ground a later one already covered.
-func TestAdvanceGap_NeverMovesBackwards(t *testing.T) {
+// A second hole opened underneath a running repair and recorded an earlier
+// position. Advancing over it would erase the only evidence it exists, so the
+// repair is told its page no longer describes where the work stands.
+func TestAdvanceGap_RefusesWhenTheRecordMovedUnderneath(t *testing.T) {
 	s := gapStore(t)
 	s.MarkGap(7, 300)
-	s.AdvanceGap(7, 400)
+	s.MarkGap(7, 100)
 
-	s.AdvanceGap(7, 350)
+	assert.False(t, s.AdvanceGap(7, 300, 400))
 
 	after, _ := s.Gap(7)
-	assert.Equal(t, 400, after)
+	assert.Equal(t, 100, after, "the earlier hole is what is left to close")
 }
 
-// The repair finished and cleared the gap while a page was still in flight.
+// The repair finished and closed the gap while a page was still in flight.
 func TestAdvanceGap_DoesNotResurrectAClosedGap(t *testing.T) {
 	s := gapStore(t)
 
-	s.AdvanceGap(7, 400)
+	assert.False(t, s.AdvanceGap(7, 300, 400))
 
 	_, ok := s.Gap(7)
 	assert.False(t, ok)
 }
 
-func TestClearGap_ForgetsTheChat(t *testing.T) {
+func TestCloseGap_ForgetsAGapThatStandsWhereItWasLeft(t *testing.T) {
+	s := gapStore(t)
+	s.MarkGap(7, 300)
+
+	assert.True(t, s.CloseGap(7, 300))
+
+	_, ok := s.Gap(7)
+	assert.False(t, ok)
+}
+
+func TestCloseGap_LeavesAHoleRecordedUnderneathIt(t *testing.T) {
+	s := gapStore(t)
+	s.MarkGap(7, 300)
+	s.MarkGap(7, 100)
+
+	assert.False(t, s.CloseGap(7, 300))
+
+	after, ok := s.Gap(7)
+	require.True(t, ok, "a hole nobody closed is still a hole")
+	assert.Equal(t, 100, after)
+}
+
+func TestClearGap_ForgetsTheChatWhateverItSays(t *testing.T) {
 	s := gapStore(t)
 	s.MarkGap(7, 300)
 

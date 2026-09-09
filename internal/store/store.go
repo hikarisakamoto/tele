@@ -28,11 +28,16 @@ type Store interface {
 	// MarkGap records a missing range, keeping the earlier of the positions
 	// when one is already recorded.
 	MarkGap(chatID int64, afterMsgID int)
-	// AdvanceGap moves an open gap forward as a repair covers ground. It
-	// neither creates a record nor moves one backwards.
-	AdvanceGap(chatID int64, afterMsgID int)
-	// ClearGap forgets a chat's gap, for a repair that reached the tail or a
-	// reload that threw the history away.
+	// AdvanceGap moves an open gap from one position to a later one as a repair
+	// covers ground, only while the record still says what the repair last saw,
+	// and reports whether it did. A hole recorded underneath a running repair
+	// must not be written over.
+	AdvanceGap(chatID int64, from, to int) bool
+	// CloseGap forgets a gap that still stands where the repair left it, and
+	// reports whether it did.
+	CloseGap(chatID int64, at int) bool
+	// ClearGap forgets a chat's gap whatever it says, for the tail reload that
+	// threw away the history it was a hole in.
 	ClearGap(chatID int64)
 	// TailMessageID is the id of the newest message held for a chat, answered
 	// without loading the chat's history into memory.

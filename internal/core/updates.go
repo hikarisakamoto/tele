@@ -44,6 +44,19 @@ func (o *Owner) RunUpdates(ctx context.Context) {
 // it was decided, so the decision above it never learns about them (#249, ADR
 // 0013).
 func (o *Owner) handleEvent(evt store.Event) {
+	// A gap is not an update to apply. Nothing arrived and nothing changed:
+	// Telegram said something is missing, which is work to schedule rather than
+	// news to break. It notifies nobody for the same reason - the messages it
+	// is about are exactly the ones that have not come yet.
+	switch evt.Kind {
+	case store.EventChannelGap:
+		o.recordGap(evt.ChatID)
+		return
+	case store.EventGapScan:
+		go o.scanForGaps(o.ctx)
+		return
+	}
+
 	// Applying commits, and the owner's commit listener publishes the resulting
 	// deltas. Nothing is forwarded from here.
 	state.Apply(o.state, evt)

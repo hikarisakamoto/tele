@@ -71,6 +71,61 @@ func (o *Owner) backfill(ctx context.Context, w project.ChatWindow) {
 		zap.Int("want", w.Before+w.After+1))
 }
 
+// recordGap writes down that a chat stopped being able to receive what it
+// missed, at the only moment the position can still be known: right now, before
+// the messages that follow the hole land on the tail and hide it.
+//
+// A chat holding nothing records nothing. There is no hole after no message,
+// and history nobody has fetched is what backfill is for.
+func (o *Owner) recordGap(chatID int64) {
+	st := o.state.Store()
+	tail := st.TailMessageID(chatID)
+	if tail == 0 {
+		return
+	}
+	st.MarkGap(chatID, tail)
+	o.log.Info("gap recorded", zap.Int64("chat", chatID), zap.Int("after", tail))
+	if o.focus.focused(chatID) {
+		// Somebody is reading this chat, and the stream that fills it has just
+		// stopped being able to. Fetching the history directly is the only way
+		// they see anything until it recovers, so it happens now rather than at
+		// the next open.
+		go o.forwardFill(o.ctx, chatID)
+	}
+}
+
+// scanForGaps answers the account-wide version of the same news, which names no
+// chat. Reloading the dialog list is what makes the question answerable: it
+// says where every chat now ends on Telegram's side, and a chat whose tail
+// falls short of that missed the difference.
+//
+// The comparison is only honest here, before anything is appended to a tail
+// this session. Once the stream resumes, an arriving message carries the tail
+// past the hole and the two numbers agree again with the hole still in place.
+func (o *Owner) scanForGaps(ctx context.Context) {
+	chats, err := o.client.GetDialogs(ctx)
+	if err != nil {
+		o.log.Warn("gap scan could not reload the dialog list", zap.Error(err))
+		return
+	}
+	o.state.SetDialogs(chats)
+
+	st := o.state.Store()
+	marked := 0
+	for _, chat := range chats {
+		tail := st.TailMessageID(chat.ID)
+		if tail == 0 || chat.TopMessageID <= tail {
+			continue
+		}
+		st.MarkGap(chat.ID, tail)
+		marked++
+		if o.focus.focused(chat.ID) {
+			go o.forwardFill(ctx, chat.ID)
+		}
+	}
+	o.log.Info("gap scan done", zap.Int("dialogs", len(chats)), zap.Int("marked", marked))
+}
+
 // forwardFill closes a chat's recorded gap, fetching from the position it opens
 // after towards the tail one page at a time. Each page joins the one before it,
 // so the history is contiguous at every step and never holds a hole nothing
@@ -85,20 +140,31 @@ func (o *Owner) backfill(ctx context.Context, w project.ChatWindow) {
 // Caller holds the fetch guard.
 func (o *Owner) forwardFill(ctx context.Context, chatID int64) {
 	st := o.state.Store()
-	after, ok := st.Gap(chatID)
-	if !ok {
+	if _, open := st.Gap(chatID); !open {
 		return
 	}
 	chat, ok := st.GetChat(chatID)
 	if !ok {
 		return
 	}
+	if !o.beginRepair(chatID) {
+		return
+	}
+	defer o.endRepair(chatID)
+
 	limit := o.Config().UI.HistoryLimit
 	// The chat cannot hold more than the cap, so a gap wider than it is one the
 	// repair cannot win: every page past that point evicts one it already
 	// fetched.
 	budget := store.MaxMessagesPerChat
 	for {
+		// Read the position each time round rather than carrying it: a hole
+		// opening underneath the repair records an earlier one, and that is
+		// where the work has to continue from.
+		after, open := st.Gap(chatID)
+		if !open {
+			return
+		}
 		page, err := o.client.GetHistoryAfter(ctx, chat.Peer, after, limit)
 		if err != nil {
 			// Nobody asked for this fetch, so nobody is waiting to hear that it
@@ -118,19 +184,23 @@ func (o *Owner) forwardFill(ctx context.Context, chatID int64) {
 			// sliding the window back over ones we have. Nothing moved forward,
 			// so there is nothing left to close.
 			o.log.Debug("gap closed", zap.Int64("chat", chatID), zap.Int("at", after))
-			st.ClearGap(chatID)
+			st.CloseGap(chatID, after)
 			return
 		}
 		o.state.RepairHistory(chatID, page)
-		after = newest
-		st.AdvanceGap(chatID, after)
 		o.log.Debug("gap repair page",
-			zap.Int64("chat", chatID), zap.Int("fetched", len(page)), zap.Int("now_at", after))
+			zap.Int64("chat", chatID), zap.Int("fetched", len(page)), zap.Int("now_at", newest))
+		if !st.AdvanceGap(chatID, after, newest) {
+			// The record moved while the page was in flight, so it no longer
+			// describes this repair's progress. Whatever it says now is the
+			// truth, and the next turn of the loop reads it.
+			continue
+		}
 
-		if chat.TopMessageID > 0 && after >= chat.TopMessageID {
+		if chat.TopMessageID > 0 && newest >= chat.TopMessageID {
 			// Caught up with where the server was when the dialog list was
 			// read. Anything newer than that arrived through the update stream.
-			st.ClearGap(chatID)
+			st.CloseGap(chatID, newest)
 			return
 		}
 		if budget -= len(page); budget <= 0 {
@@ -177,4 +247,20 @@ func (o *Owner) endFetch(id project.SubID) {
 	o.fetchMu.Lock()
 	defer o.fetchMu.Unlock()
 	delete(o.fetching, id)
+}
+
+func (o *Owner) beginRepair(chatID int64) bool {
+	o.fetchMu.Lock()
+	defer o.fetchMu.Unlock()
+	if o.repairing[chatID] {
+		return false
+	}
+	o.repairing[chatID] = true
+	return true
+}
+
+func (o *Owner) endRepair(chatID int64) {
+	o.fetchMu.Lock()
+	defer o.fetchMu.Unlock()
+	delete(o.repairing, chatID)
 }
