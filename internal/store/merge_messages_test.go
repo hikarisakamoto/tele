@@ -77,6 +77,43 @@ func TestMergeMessages_TakesTheFetchedCopyOfAMessageEditedInTheGap(t *testing.T)
 	assert.Equal(t, "after", held[0].Text)
 }
 
+func fullChat(t *testing.T) store.Store {
+	t.Helper()
+	s := storeWithChat(t)
+	held := make([]domain.Message, 0, store.MaxMessagesPerChat)
+	for i := 1; i <= store.MaxMessagesPerChat; i++ {
+		held = append(held, mergeMsg(i, int64(i)))
+	}
+	s.SetMessages(7, held)
+	return s
+}
+
+// Scrolling back is somebody asking for more history, so the chat is allowed to
+// grow past the cap and hold what they scrolled to.
+func TestMergeMessages_DeepensAChatThatIsAlreadyFull(t *testing.T) {
+	s := fullChat(t)
+
+	added := s.MergeMessages(7, []domain.Message{mergeMsg(-1, -1), mergeMsg(0, 0)})
+
+	assert.Equal(t, 2, added)
+	assert.Len(t, s.Messages(7), store.MaxMessagesPerChat+2)
+}
+
+// A repair is nobody's request. It must not leave the chat costing more to hold
+// than it did before the hole opened, or every gap would raise the floor once
+// and never lower it.
+func TestRepairMessages_LeavesTheChatNoDeeper(t *testing.T) {
+	s := fullChat(t)
+
+	added := s.RepairMessages(7, []domain.Message{mergeMsg(1001, 1001), mergeMsg(1002, 1002)})
+
+	assert.Equal(t, 2, added, "the page is counted before the cap trims the other end")
+	got := s.Messages(7)
+	require.Len(t, got, store.MaxMessagesPerChat)
+	assert.Equal(t, 1002, got[len(got)-1].ID, "the repaired range is held")
+	assert.Equal(t, 3, got[0].ID, "the two oldest made room for it")
+}
+
 func storedIDs(s store.Store, chatID int64) []int {
 	msgs := s.Messages(chatID)
 	out := make([]int, 0, len(msgs))

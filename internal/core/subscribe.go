@@ -25,7 +25,7 @@ func (o *Owner) Subscribe(w project.Window) project.SubID {
 	}
 	id, deltas := o.registry.Subscribe(w)
 	o.publish(deltas)
-	o.maybeBackfill(id, w)
+	o.maybeFetch(id, w)
 	return id
 }
 
@@ -33,7 +33,7 @@ func (o *Owner) Subscribe(w project.Window) project.SubID {
 // window move cannot be synchronous, so it is not synchronous here either.
 func (o *Owner) MoveWindow(id project.SubID, w project.Window) {
 	o.publish(o.registry.MoveWindow(id, w))
-	o.maybeBackfill(id, w)
+	o.maybeFetch(id, w)
 }
 
 func (o *Owner) Unsubscribe(id project.SubID) { o.registry.Unsubscribe(id) }
@@ -45,17 +45,20 @@ func (o *Owner) Unsubscribe(id project.SubID) { o.registry.Unsubscribe(id) }
 // commit publishes. The forward preview bump is the one caller inside the owner.
 func (o *Owner) Refresh() { o.publish(o.registry.Refresh()) }
 
-// maybeBackfill fetches from Telegram when a chat window asked for more history
-// than the store holds, so a client never has to know where data comes from.
-func (o *Owner) maybeBackfill(id project.SubID, w project.Window) {
+// maybeFetch goes to Telegram when the store cannot answer a chat window on its
+// own, so a client never has to know where data comes from. There are two
+// reasons: the chat has a recorded gap, which is a hole somebody has to close,
+// and the window came back short, which is history nobody has fetched yet.
+func (o *Owner) maybeFetch(id project.SubID, w project.Window) {
 	cw, ok := w.(project.ChatWindow)
 	if !ok || o.client == nil {
 		return
 	}
-	if !needsBackfill(project.BuildChat(o.reader(), cw), cw) {
+	_, hasGap := o.state.Store().Gap(cw.ChatID)
+	if !hasGap && !needsBackfill(project.BuildChat(o.reader(), cw), cw) {
 		return
 	}
-	go o.backfill(o.ctx, id, cw)
+	go o.fill(o.ctx, id, cw)
 }
 
 // needsBackfill reports that the store could not fill the window: it returned

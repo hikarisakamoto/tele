@@ -17,6 +17,10 @@ type Store interface {
 	// It is how a page fetched from Telegram is applied: SetMessages after a
 	// read outside the lock would drop anything that arrived in between.
 	MergeMessages(chatID int64, msgs []domain.Message) int
+	// RepairMessages merges a page the way MergeMessages does but leaves the
+	// chat no deeper than it found it: a page nobody asked for must not raise
+	// what the chat costs to hold.
+	RepairMessages(chatID int64, msgs []domain.Message) int
 	// Gap reports the message a chat's missing range opens after, if it has
 	// one. A gap is recorded when it opens rather than noticed later: once
 	// updates resume the tail moves past the hole and nothing can see it.

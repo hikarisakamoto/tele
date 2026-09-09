@@ -18,14 +18,19 @@ import (
 	internaltg "github.com/sorokin-vladimir/tele/internal/tg"
 )
 
-// stubConn answers GetHistory and nothing else. The embedded interface is nil,
-// so any other call panics — which is the point: a test that reaches further
-// than it declared should fail loudly.
+// stubConn answers the two history calls and nothing else. The embedded
+// interface is nil, so any other call panics — which is the point: a test that
+// reaches further than it declared should fail loudly.
 type stubConn struct {
 	internaltg.Client
 	history []domain.Message
 	calls   atomic.Int32
 	release chan struct{}
+
+	// server is what Telegram holds for the forward direction, oldest first.
+	server   []domain.Message
+	fwdCalls atomic.Int32
+	fwdErr   error
 }
 
 func (s *stubConn) Connect(context.Context, *config.Config, *internaltg.AuthFlow, chan<- struct{}, func(int64, string)) error {
@@ -40,6 +45,32 @@ func (s *stubConn) GetHistory(_ context.Context, _ domain.Peer, _ int, _ int) ([
 		<-s.release
 	}
 	return s.history, nil
+}
+
+// GetHistoryAfter answers the way messages.getHistory with a negative
+// add_offset does: the messages newer than afterID, and when there are none,
+// the window slides back over ones the caller already has.
+func (s *stubConn) GetHistoryAfter(_ context.Context, _ domain.Peer, afterID int, limit int) ([]domain.Message, error) {
+	s.fwdCalls.Add(1)
+	if s.fwdErr != nil {
+		return nil, s.fwdErr
+	}
+	var newer []domain.Message
+	for _, m := range s.server {
+		if m.ID > afterID {
+			newer = append(newer, m)
+		}
+	}
+	if len(newer) == 0 {
+		if len(s.server) <= limit {
+			return s.server, nil
+		}
+		return s.server[len(s.server)-limit:], nil
+	}
+	if len(newer) > limit {
+		newer = newer[:limit]
+	}
+	return newer, nil
 }
 
 func newOwnerWithClient(t *testing.T, c Connection) (*Owner, *state.State) {

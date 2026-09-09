@@ -156,3 +156,16 @@ func (s *State) MergeHistory(chatID int64, msgs []domain.Message) (Change, bool)
 	s.commit(c)
 	return c, true
 }
+
+// RepairHistory joins a page fetched to close a gap. It differs from
+// MergeHistory in what it promises the store: a repair leaves the chat no
+// deeper than it found it, because nobody asked for the page and its cost
+// should not outlive the hole it filled.
+func (s *State) RepairHistory(chatID int64, msgs []domain.Message) (Change, bool) {
+	if s.st.RepairMessages(chatID, msgs) == 0 {
+		return Change{}, false
+	}
+	c := Change{Kind: ChangeHistory, ChatID: chatID}
+	s.commit(c)
+	return c, true
+}

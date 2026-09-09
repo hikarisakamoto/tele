@@ -25,7 +25,7 @@ func (s *SQLiteStore) Messages(chatID int64) []domain.Message {
 func (s *SQLiteStore) SetMessages(chatID int64, msgs []domain.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.setMessagesLocked(chatID, msgs)
+	s.setMessagesLocked(chatID, msgs, len(msgs))
 }
 
 // MergeMessages merges a fetched page into a chat's stored history and reports
@@ -43,14 +43,35 @@ func (s *SQLiteStore) MergeMessages(chatID int64, msgs []domain.Message) int {
 	defer s.mu.Unlock()
 	held := s.messages[chatID]
 	merged := domain.MergeMessages(held, msgs)
-	s.setMessagesLocked(chatID, merged)
+	s.setMessagesLocked(chatID, merged, len(merged))
+	return len(merged) - len(held)
+}
+
+// RepairMessages merges a page in the way MergeMessages does, and leaves the
+// chat no deeper than it found it: the cap applies as if the page had never
+// come, trimming the oldest to make room.
+//
+// The floor exists to protect a scrollback somebody scrolled to, so that an
+// arriving message cannot cap it back down. A page that closes a gap was asked
+// for by nobody, and letting it raise the floor would turn a repair into a
+// permanent rise in what the chat costs to hold, once per hole.
+func (s *SQLiteStore) RepairMessages(chatID int64, msgs []domain.Message) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	held := s.messages[chatID]
+	merged := domain.MergeMessages(held, msgs)
+	s.setMessagesLocked(chatID, merged, s.msgFloor[chatID])
+	// What the page brought, counted before the cap trims the other end: a
+	// repair that adds fifty and pushes fifty older ones out still changed
+	// every window looking at it.
 	return len(merged) - len(held)
 }
 
 // setMessagesLocked replaces a chat's history with msgs, taking a copy: the
 // slice handed in may be the caller's own, or the store's own held slice come
-// back through a merge. Caller holds the lock.
-func (s *SQLiteStore) setMessagesLocked(chatID int64, msgs []domain.Message) {
+// back through a merge. floor is how deep this write claims the chat was
+// filled, which is what the cap will not trim below. Caller holds the lock.
+func (s *SQLiteStore) setMessagesLocked(chatID int64, msgs []domain.Message, floor int) {
 	cp := make([]domain.Message, len(msgs))
 	copy(cp, msgs)
 
@@ -72,7 +93,7 @@ func (s *SQLiteStore) setMessagesLocked(chatID int64, msgs []domain.Message) {
 	if s.msgFloor == nil {
 		s.msgFloor = make(map[int64]int)
 	}
-	s.msgFloor[chatID] = len(cp)
+	s.msgFloor[chatID] = floor
 	s.capMessagesLocked(chatID)
 	if chat, ok := s.chats[chatID]; ok && sharedPtsBox(chat.Peer) {
 		for _, m := range s.messages[chatID] {

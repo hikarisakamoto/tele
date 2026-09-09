@@ -193,10 +193,20 @@ type Chat struct {
 	ReadInboxMaxID  int
 	ReadOutboxMaxID int
 	LastMessage     *Message
-	IsContact       bool
-	IsBot           bool
-	IsMuted         bool
-	Online          bool
+	// TopMessageID is the id of the newest message the server has for this
+	// chat, as of the last dialog list. It is where the history ends on
+	// Telegram's side, which is what a repair compares its progress against;
+	// LastMessage is the preview of that message and carries no id of its own.
+	//
+	// Held in memory only. Every connection reloads the dialog list before
+	// anything reads this, so a value from disk would always be overwritten
+	// before it was used, and a second place to be wrong about where the server
+	// is buys nothing.
+	TopMessageID int
+	IsContact    bool
+	IsBot        bool
+	IsMuted      bool
+	Online       bool
 	// UnreadMark is the Telegram dialog `unread_mark` flag: a manual
 	// "mark as unread" that is independent of UnreadCount.
 	UnreadMark bool

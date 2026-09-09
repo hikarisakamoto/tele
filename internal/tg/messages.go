@@ -118,6 +118,47 @@ func (c *GotdClient) GetHistory(ctx context.Context, peer domain.Peer, offsetID 
 	return msgs, err
 }
 
+// GetHistoryAfter fetches up to limit messages newer than afterID, oldest
+// first. It is the direction backfill does not go: messages.getHistory pages
+// backwards from offset_id, and a negative add_offset is what moves the window
+// to the other side of it.
+//
+// Telegram slides the window when there are fewer than limit messages newer
+// than afterID, so the page can come back holding messages at or below afterID.
+// The caller sees that as a page whose newest message did not advance, which is
+// how it learns there is nothing newer to fetch.
+func (c *GotdClient) GetHistoryAfter(ctx context.Context, peer domain.Peer, afterID int, limit int) ([]domain.Message, error) {
+	api, err := c.acquireAPI()
+	if err != nil {
+		return nil, err
+	}
+
+	c.traceLog.Debug("GetHistoryAfter", zap.Int64("peer_id", peer.ID), zap.Int("afterID", afterID), zap.Int("limit", limit))
+	inputPeer := peerToInput(peer)
+	var msgs []domain.Message
+	err = WithRetry(ctx, func() error {
+		result, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
+			Peer:      inputPeer,
+			Limit:     limit,
+			OffsetID:  afterID,
+			AddOffset: -limit,
+		})
+		if err != nil {
+			c.log.Error("MessagesGetHistory forward failed", zap.Error(err))
+			return err
+		}
+		msgs = parseHistory(result, peer.ID)
+		// Seed the sender-name cache from the fully-resolved history so a later
+		// live update that omits a sender's entity still resolves the name (#161).
+		for _, m := range msgs {
+			c.senderNames.put(m.SenderID, m.SenderName)
+		}
+		c.traceLog.Debug("GetHistoryAfter done", zap.Int64("peer_id", peer.ID), zap.Int("count", len(msgs)))
+		return nil
+	})
+	return msgs, err
+}
+
 func (c *GotdClient) SendMessage(ctx context.Context, peer domain.Peer, text string, replyToMsgID int, entities []domain.MessageEntity, randomID int64) (domain.Message, error) {
 	api, err := c.acquireAPI()
 	if err != nil {
