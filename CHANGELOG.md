@@ -23,8 +23,27 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
   many show at once have worked since 1.8.1 but appeared in neither the README
   nor `config.yml.example`, so the only way to find them was to read the source.
 
+### Fixed
+
+- Messages a busy group ran ahead of tele with now arrive. Once its recorded
+  position falls too far behind, Telegram refuses to say what a chat missed and
+  hands the problem back; nothing in tele ever asked for messages newer than the
+  ones it held, so the update stream was the only thing that could fill the
+  bottom of a chat and a range it missed was missed for good, with nothing on
+  screen to say so. The hole is written down when it opens, survives a restart,
+  and is fetched on its own. A chat you are reading is repaired while you read
+  it, so it keeps filling even while its updates are stalled.
+- A chat whose hole is wider than it could hold is reloaded rather than
+  patched: the stored history is replaced by a fresh page, and scrolling up
+  loads the rest back as it always did. Two ranges that do not meet are never
+  drawn as one conversation.
+
 ### Changed
 
+- A message edited while tele was not listening comes back with its current
+  text when the history around it is fetched again. What the store already held
+  used to win, which kept the older wording until the chat was reopened for some
+  other reason.
 - `ui.notification_preview` is now `ui.notifications.preview`, alongside the two
   switches. The old spelling is still read and tele says so once; nothing
   changes for you until you move the line. Its help said the setting was about
