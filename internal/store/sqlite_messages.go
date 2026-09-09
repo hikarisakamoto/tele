@@ -25,6 +25,32 @@ func (s *SQLiteStore) Messages(chatID int64) []domain.Message {
 func (s *SQLiteStore) SetMessages(chatID int64, msgs []domain.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.setMessagesLocked(chatID, msgs)
+}
+
+// MergeMessages merges a fetched page into a chat's stored history and reports
+// how many messages it added. Reading the held history, merging and storing the
+// result happen under one hold of the lock, which is what keeps a message
+// arriving mid-fetch from being written back out of existence: read and write
+// as two calls leave a window where the arrival lands between them and is lost
+// when the merged page replaces the slice.
+//
+// A page that adds nothing still lands, because a message can come back edited
+// without changing the count. The caller decides what to do about a zero, and
+// what it is told is what the count changed by, not whether anything did.
+func (s *SQLiteStore) MergeMessages(chatID int64, msgs []domain.Message) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	held := s.messages[chatID]
+	merged := domain.MergeMessages(held, msgs)
+	s.setMessagesLocked(chatID, merged)
+	return len(merged) - len(held)
+}
+
+// setMessagesLocked replaces a chat's history with msgs, taking a copy: the
+// slice handed in may be the caller's own, or the store's own held slice come
+// back through a merge. Caller holds the lock.
+func (s *SQLiteStore) setMessagesLocked(chatID int64, msgs []domain.Message) {
 	cp := make([]domain.Message, len(msgs))
 	copy(cp, msgs)
 

@@ -129,12 +129,29 @@ func (s *State) ApplyMediaRef(chatID int64, msgID int, photo *domain.PhotoRef, d
 	return c, true
 }
 
-// ApplyHistory replaces a chat's stored messages with a fetched page. The
-// caller merges the page with what is already held (see core.MergeOlder); state
-// stores what it is given and publishes one change, so the chat:<id> projection
-// rebuilds through the same path as every other change.
+// ApplyHistory replaces a chat's stored messages with a page outright,
+// dropping whatever was held. It is for the caller that has decided the stored
+// history cannot be reconciled with the server's and is starting again; a page
+// that is meant to join what is already there goes through MergeHistory.
 func (s *State) ApplyHistory(chatID int64, msgs []domain.Message) (Change, bool) {
 	s.st.SetMessages(chatID, msgs)
+	c := Change{Kind: ChangeHistory, ChatID: chatID}
+	s.commit(c)
+	return c, true
+}
+
+// MergeHistory joins a fetched page to a chat's stored history and publishes one
+// change, so the chat:<id> projection rebuilds through the same path as every
+// other change. The merge itself happens inside the store, under its lock,
+// which is what keeps a message arriving mid-fetch from being overwritten.
+//
+// A page that added nothing publishes nothing: it means the fetch reached
+// history the store already had, and rebuilding every window to say so would
+// cost a frame for no news.
+func (s *State) MergeHistory(chatID int64, msgs []domain.Message) (Change, bool) {
+	if s.st.MergeMessages(chatID, msgs) == 0 {
+		return Change{}, false
+	}
 	c := Change{Kind: ChangeHistory, ChatID: chatID}
 	s.commit(c)
 	return c, true

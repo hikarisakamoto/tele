@@ -143,3 +143,36 @@ func TestOwner_ConcurrentBackfillsCollapseToOneFetch(t *testing.T) {
 
 	assert.Equal(t, int32(1), inFlight, "one fetch per subscription may be in flight")
 }
+
+// A backfill reads the held history, spends a round trip on the network and
+// writes the result back. A message arriving in that window is in the store and
+// not in what the fetch read, so it only survives because the merge happens
+// inside the store rather than around it.
+func TestOwner_BackfillKeepsAMessageThatArrivedWhileItWasFetching(t *testing.T) {
+	c := &stubConn{
+		release: make(chan struct{}),
+		history: []domain.Message{
+			{ID: 1, ChatID: 7, Date: time.Unix(1, 0)},
+			{ID: 2, ChatID: 7, Date: time.Unix(2, 0)},
+		},
+	}
+	o, s := newOwnerWithClient(t, c)
+	s.Store().SetChat(domain.Chat{ID: 7, Peer: domain.Peer{ID: 7}})
+	s.Store().SetMessages(7, []domain.Message{{ID: 5, ChatID: 7, Date: time.Unix(5, 0)}})
+
+	o.Subscribe(project.ChatWindow{
+		ChatID: 7, Anchor: project.Anchor{Kind: project.AnchorNewest}, Before: 20,
+	})
+	require.Eventually(t, func() bool { return c.calls.Load() >= 1 }, time.Second, time.Millisecond,
+		"the fetch must be in flight before the message arrives")
+
+	s.Store().AppendMessage(domain.Message{ID: 6, ChatID: 7, Date: time.Unix(6, 0)})
+	close(c.release)
+
+	require.Eventually(t, func() bool { return len(s.Store().Messages(7)) == 4 }, time.Second, time.Millisecond)
+	ids := make([]int, 0, 4)
+	for _, m := range s.Store().Messages(7) {
+		ids = append(ids, m.ID)
+	}
+	assert.Equal(t, []int{1, 2, 5, 6}, ids)
+}

@@ -167,9 +167,10 @@ func TestApplyDelete_WithoutChatIDResolvesThroughStore(t *testing.T) {
 	assert.Empty(t, st.Messages(1))
 }
 
-// ApplyHistory is how a fetched page of history enters state: the owner merges
-// it with what is already stored and commits the result, so projections rebuild
-// from one place rather than from a client's reply handler.
+// ApplyHistory is how a page replaces a chat's history outright, and
+// MergeHistory is how one joins what is already there. Both commit through
+// state, so projections rebuild from one place rather than from a client's
+// reply handler.
 func TestApplyHistory_StoresTheWindowAndPublishesOneChange(t *testing.T) {
 	s, st := newState(t)
 	var seen []state.Change
@@ -199,6 +200,39 @@ func TestApplyHistory_ReplacesTheStoredMessages(t *testing.T) {
 	})
 
 	assert.Len(t, st.Messages(1), 2, "the caller merges; state stores what it is given")
+}
+
+func TestMergeHistory_JoinsThePageAndPublishesOneChange(t *testing.T) {
+	s, st := newState(t)
+	var seen []state.Change
+	st.SetChat(domain.Chat{ID: 1})
+	st.SetMessages(1, []domain.Message{{ID: 3, ChatID: 1, Date: time.Unix(3, 0)}})
+	s.OnChange(func(c state.Change) { seen = append(seen, c) })
+
+	chg, ok := s.MergeHistory(1, []domain.Message{
+		{ID: 1, ChatID: 1, Date: time.Unix(1, 0)},
+		{ID: 2, ChatID: 1, Date: time.Unix(2, 0)},
+	})
+
+	require.True(t, ok)
+	assert.Equal(t, state.ChangeHistory, chg.Kind)
+	assert.Equal(t, int64(1), chg.ChatID)
+	assert.Len(t, st.Messages(1), 3, "the page joins what was held rather than replacing it")
+	assert.Len(t, seen, 1)
+}
+
+func TestMergeHistory_PublishesNothingForAPageThatAddsNothing(t *testing.T) {
+	s, st := newState(t)
+	var seen []state.Change
+	st.SetChat(domain.Chat{ID: 1})
+	held := []domain.Message{{ID: 1, ChatID: 1, Date: time.Unix(1, 0)}}
+	st.SetMessages(1, held)
+	s.OnChange(func(c state.Change) { seen = append(seen, c) })
+
+	_, ok := s.MergeHistory(1, held)
+
+	assert.False(t, ok, "reaching history the store already had is not news")
+	assert.Empty(t, seen)
 }
 
 // A refreshed file reference is not an edit: it changes how the media is

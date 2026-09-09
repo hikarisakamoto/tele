@@ -12,6 +12,11 @@ type Store interface {
 	Chats() []domain.Chat
 	Messages(chatID int64) []domain.Message
 	SetMessages(chatID int64, msgs []domain.Message)
+	// MergeMessages merges a fetched page into a chat's stored history under a
+	// single hold of the store's lock and reports how many messages it added.
+	// It is how a page fetched from Telegram is applied: SetMessages after a
+	// read outside the lock would drop anything that arrived in between.
+	MergeMessages(chatID int64, msgs []domain.Message) int
 	// LoadMessages loads a chat's persisted message tail into memory on first
 	// open (idempotent per chat). See issue #139.
 	LoadMessages(chatID int64)
