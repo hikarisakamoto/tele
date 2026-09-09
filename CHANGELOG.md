@@ -11,6 +11,8 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+## [1.11.4] - 2026-09-09
+
 ### Added
 
 - The desktop notification and the in-app toast are switched separately:
