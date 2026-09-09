@@ -17,6 +17,22 @@ type Store interface {
 	// It is how a page fetched from Telegram is applied: SetMessages after a
 	// read outside the lock would drop anything that arrived in between.
 	MergeMessages(chatID int64, msgs []domain.Message) int
+	// Gap reports the message a chat's missing range opens after, if it has
+	// one. A gap is recorded when it opens rather than noticed later: once
+	// updates resume the tail moves past the hole and nothing can see it.
+	Gap(chatID int64) (int, bool)
+	// MarkGap records a missing range, keeping the earlier of the positions
+	// when one is already recorded.
+	MarkGap(chatID int64, afterMsgID int)
+	// AdvanceGap moves an open gap forward as a repair covers ground. It
+	// neither creates a record nor moves one backwards.
+	AdvanceGap(chatID int64, afterMsgID int)
+	// ClearGap forgets a chat's gap, for a repair that reached the tail or a
+	// reload that threw the history away.
+	ClearGap(chatID int64)
+	// TailMessageID is the id of the newest message held for a chat, answered
+	// without loading the chat's history into memory.
+	TailMessageID(chatID int64) int
 	// LoadMessages loads a chat's persisted message tail into memory on first
 	// open (idempotent per chat). See issue #139.
 	LoadMessages(chatID int64)
