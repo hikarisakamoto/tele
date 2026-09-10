@@ -3,6 +3,7 @@ package media_test
 import (
 	"strings"
 	"testing"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi/kitty"
@@ -121,6 +122,35 @@ func TestKittyRenderer_CellsCarryPlaceholderAndDiacritics(t *testing.T) {
 	require.Contains(t, first, string(kitty.Diacritic(0)))      // row 0
 	require.Contains(t, first, string(kitty.Diacritic(cols-1))) // last column
 	require.True(t, strings.HasSuffix(first, "\x1b[0m"), "line resets SGR")
+}
+
+// TestPlaceholderWindow_CellsCarryImageIDMSB pins the third diacritic. The
+// Kitty spec makes it optional while the image id fits in 24 bits, but iTerm2
+// reads an absent one as -1 and shifts it into the id as 0xff000000, so the
+// placement is never found and the image does not draw (#259).
+func TestPlaceholderWindow_CellsCarryImageIDMSB(t *testing.T) {
+	lines := media.PlaceholderWindow(7, 0, 0, 1, 1)
+	require.Len(t, lines, 1)
+
+	var marks []rune
+	for _, r := range lines[0] {
+		if unicode.Is(unicode.Mn, r) {
+			marks = append(marks, r)
+		}
+	}
+	require.Equal(t,
+		[]rune{kitty.Diacritic(0), kitty.Diacritic(0), kitty.Diacritic(0)},
+		marks, "cell carries row, column and image-id-msb diacritics")
+}
+
+// TestPlaceholderWindow_MSBDiacriticFollowsID guards the encoding for ids that
+// do not fit in 24 bits, so a wrapped id still names its own placement.
+func TestPlaceholderWindow_MSBDiacriticFollowsID(t *testing.T) {
+	const id = 0x03_00_00_05
+
+	lines := media.PlaceholderWindow(id, 0, 0, 1, 1)
+	require.Len(t, lines, 1)
+	require.Contains(t, lines[0], string(kitty.Diacritic(3)), "third diacritic spells the id's top byte")
 }
 
 func TestKittyStore_DeleteLiveSeq_PerID(t *testing.T) {

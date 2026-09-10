@@ -244,9 +244,17 @@ func placeholderLines(id uint32, cols, rows int) []string {
 // placement — the same mechanism the message list uses for partial-scroll
 // slicing, here used to crop a mosaic tile to a centered window. hOff/vOff of 0
 // with winCols/winRows equal to the placement size yields the whole image.
+//
+// A third diacritic spells out the image id's most significant byte. The spec
+// lets it be omitted while the id fits in 24 bits (ours always does), but
+// iTerm2 reads an absent one as -1 and shifts it into the id as 0xff000000,
+// then finds no placement under that number and draws nothing (#259). Sending
+// it costs one combining mark per cell and terminals that default it to zero
+// read the same id either way.
 func PlaceholderWindow(id uint32, hOff, vOff, winCols, winRows int) []string {
 	fg := fmt.Sprintf("\x1b[38;2;%d;%d;%dm",
 		byte((id>>16)&0xff), byte((id>>8)&0xff), byte(id&0xff))
+	msb := kitty.Diacritic(int(id >> 24))
 	lines := make([]string, winRows)
 	for r := 0; r < winRows; r++ {
 		var sb strings.Builder
@@ -256,6 +264,7 @@ func PlaceholderWindow(id uint32, hOff, vOff, winCols, winRows int) []string {
 			sb.WriteRune(kitty.Placeholder)
 			sb.WriteRune(rd)
 			sb.WriteRune(kitty.Diacritic(hOff + c))
+			sb.WriteRune(msb)
 		}
 		sb.WriteString("\x1b[0m")
 		lines[r] = sb.String()
