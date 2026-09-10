@@ -283,9 +283,13 @@ Invoke-WebRequest `
 ```
 
 For arm64: replace `amd64` with `arm64`. Add `$dir` to your `PATH` (or run
-`tele.exe` by full path), then launch it from a terminal that supports the Kitty
-graphics protocol - e.g. [WezTerm](https://wezterm.org) - for inline images.
-A plain console (cmd.exe / classic conhost) falls back to ANSI block-art photos.
+`tele.exe` by full path) and launch it from any terminal. Photos are ANSI block
+art there: inline images need a terminal that draws Kitty images through Unicode
+placeholder cells, and no Windows terminal does that yet -
+[WezTerm](https://wezterm.org) has the Kitty graphics protocol but not the
+placeholders ([wezterm#7924](https://github.com/wezterm/wezterm/pull/7924)).
+Once a terminal gains them, `photos.mode: kitty` turns inline images on before
+auto-detection learns to recognize it.
 
 > Prefer a packaged install? A `.zip` containing `tele.exe`
 > (`tele_windows_amd64.zip`) is attached to every [release](https://github.com/sorokin-vladimir/tele/releases/latest).
