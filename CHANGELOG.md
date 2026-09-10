@@ -11,6 +11,24 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+### Added
+
+- iTerm2 3.7.0 and newer gets inline photos at full quality instead of block
+  art. The README says which terminals `photos.mode: auto` draws images in, so
+  choosing a terminal no longer means reading the source.
+
+### Fixed
+
+- Photos draw in iTerm2. Every placeholder cell now names the image id in full,
+  including the top byte the specification lets a sender leave out. iTerm2 read
+  the missing byte as `0xff`, looked for an image nobody had sent, and left the
+  photo as blank space.
+- A photo is no longer drawn in place of one from an earlier run. The terminal
+  keeps the images of a process that has exited and iTerm2 answers with the
+  first one carrying the id it was asked for, so a second run in the same tab
+  showed the pictures of the first. Numbering now starts somewhere random,
+  which also keeps tele out of the way of other programs in that terminal.
+
 ## [1.11.4] - 2026-09-09
 
 ### Added

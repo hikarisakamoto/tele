@@ -134,7 +134,7 @@ per-chat drafts synced with Telegram (saved on the server, shared across devices
 
 ### 🎞 Rich media in the terminal
 
-- **Photos** - rendered inline in high quality via the Kitty graphics protocol, with an ANSI block-art fallback; press `o` to open the full-quality image in an in-app modal viewer (sender and timestamp on the border), or `O` to open it in an external viewer.
+- **Photos** - rendered inline in high quality via the Kitty graphics protocol in kitty, Ghostty and iTerm2 3.7.0 or newer, with an ANSI block-art fallback everywhere else; press `o` to open the full-quality image in an in-app modal viewer (sender and timestamp on the border), or `O` to open it in an external viewer.
 - **Voice messages** - amplitude waveform with duration, and **in-app playback** (`p`) with an animated playhead. Fully cgo-free on every platform: Opus/Ogg is decoded in pure Go, and audio goes out via `oto` (macOS/Windows) or the PulseAudio/PipeWire protocol (Linux). On Linux this needs a running PulseAudio or PipeWire server (the desktop default).
 - **Video & round video (кружки)** - inline thumbnail preview with a `▶` / duration overlay (round notes shown as a circle); press `o` to play in the system player.
 - **GIFs** - inline static thumbnail with a `GIF` badge; the selected GIF loops silently in place (Kitty graphics mode). Requires `ffmpeg` - see below.
@@ -514,6 +514,14 @@ message.
 > `bottom-right` or `top-right` and may name the same corner, in which case they
 > stack together. The bottom-left corner is not offered: it is kept for the
 > key-press overlay.
+
+> **`photos.mode`** picks the renderer. `auto` uses the Kitty graphics protocol
+> in the terminals known to place images through Unicode placeholders - kitty,
+> Ghostty, and iTerm2 from 3.7.0 - and draws ANSI block art everywhere else,
+> including inside tmux and screen, which do not pass the protocol through.
+> `kitty` and `blocks` force one renderer for a terminal the heuristic does not
+> know: forcing `kitty` on one that ignores placeholder cells leaves a photo as
+> blank space rather than block art. The value is read once at startup.
 
 > **`kitty_placement_cap`** bounds how many Kitty image placements are live on
 > the terminal simultaneously. Only on-screen images (plus a few recently
