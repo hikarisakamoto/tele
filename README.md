@@ -268,8 +268,7 @@ sudo apk add --allow-untrusted tele
 > Prefer a raw package? Signed `.deb` and `.rpm` files are also attached to
 > every [release](https://github.com/sorokin-vladimir/tele/releases/latest).
 
-> **Coming soon:** AUR (`tele-bin`) and Snap are already wired into the release
-> pipeline and will be published once the store credentials are in place.
+> **Coming soon:** AUR and Snap packages are planned but not published yet.
 
 ### Windows - binary
 
@@ -610,13 +609,13 @@ list of action names and what each one does.
 
 Planned work lives on the public [**project board**](https://github.com/users/sorokin-vladimir/projects/2),
 grouped into [milestones](https://github.com/sorokin-vladimir/tele/milestones). Milestones track
-minor lines (`v1.9`, `v1.10`, …); patch releases ship incrementally within a line as fixes land.
+minor lines (`v1.11`, `v2.0`, …); patch releases ship incrementally within a line as fixes land.
 
-| Release             | Focus                                                                                                                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v1.9` _(in work)_  | Offline history & media internals - SQLite-backed history for instant chat open, on-disk image LRU cache, album sending, `?` shortcuts help modal, Kitty renderer fixes                                                         |
-| `v1.10` _(planned)_ | Search & chat polish - full-text history search, command palette, in-chat grep, pinned messages, search-modal preview, richer reply UX, plus image-modal and chat-list fixes                                                    |
-| `Backlog`           | Power-user & platform - color themes (gruvbox / nord / catppuccin), extended vim motions, scheduled sending, bot commands & inline keyboards, voice and round-video messages, notification click routing, AUR & Snap publishing |
+| Release             | Focus                                                                                                                                                                                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v1.11` _(in work)_ | Settings & people - in-app settings overlay, user profile overlay, avatars, themes shipped inside the binary, plus the distribution and audit gaps left behind                                                                            |
+| `v2.0` _(planned)_  | Single owner of the Telegram connection - a resident daemon with attachable TUI and CLI clients, headless scripting, background notifications                                                                                             |
+| `Backlog`           | Power-user & platform - search (full-text history, command palette, in-chat grep), voice and round-video messages, scheduled sending, bot commands & inline keyboards, secret chats, polls, extended vim motions, notification click routing |
 
 Work is also categorized by theme (Security & Reliability, Architecture & Performance,
 Feature Completeness, Power User & Polish) via the board's **Theme** field.
