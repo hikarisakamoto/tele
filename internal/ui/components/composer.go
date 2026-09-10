@@ -521,18 +521,46 @@ func (c *Composer) View() string {
 	return RenderBox(content, "", "", "", c.sendAffordance(), lipgloss.RoundedBorder(), borderFg, c.width, h)
 }
 
-// applyTheme refreshes the textarea styles for the active terminal scheme, then
-// puts the optional canvas behind them.
+// applyTheme rebuilds the textarea styles for the current theme, then puts the
+// optional canvas behind them.
 //
-// textarea.New starts with dark styles and does not observe tele's theme changes.
-// Rebuilding its defaults also clears a canvas from an earlier custom theme.
+// The textarea is the one thing on screen tele does not colour token by token:
+// it owns a palette of its own, and the app can only choose which of the two
+// variants that palette comes in. So the rebuild is total and deliberate, which
+// reverses what this function used to do — see ADR 0015.
+//
+// Which variant is right is not the slot's question but the canvas's. The slot
+// follows the terminal background, and a theme that paints a canvas covers that
+// background over: seoul256-light in the dark slot leaves a light field with
+// dark-variant text on it. So the canvas decides whenever there is one, and only
+// a bare terminal falls back to the slot.
+//
+// The canvas guard (ADR 0002) is satisfied without an exception: these styles
+// come from the vendored component rather than a bare constructor, and every
+// state they reach is painted with the canvas here, in this function, before
+// they can render a cell.
 //
 // It runs per frame because the theme can change under a running session, and
 // the styles are values rather than a live reference to it.
 func (c *Composer) applyTheme() {
-	s := textarea.DefaultStyles(theme.IsDark())
 	bg := theme.T().Background
-	if !theme.IsNone(bg) {
+	painted := !theme.IsNone(bg)
+
+	dark := theme.IsDark()
+	if painted {
+		dark = theme.IsDarkColor(bg)
+	}
+
+	s := textarea.DefaultStyles(dark)
+
+	// The draft is body text, so it takes the theme's own colour when the theme
+	// claims one. Only the focused state: the blurred one is quieter on purpose,
+	// and the variant above already keeps it legible.
+	if fg := theme.T().Text; !theme.IsNone(fg) {
+		s.Focused.Text = s.Focused.Text.Foreground(fg)
+	}
+
+	if painted {
 		paint := func(s textarea.StyleState) textarea.StyleState {
 			s.Base = s.Base.Background(bg)
 			s.Text = s.Text.Background(bg)
