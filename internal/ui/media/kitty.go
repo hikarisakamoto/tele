@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -15,6 +16,10 @@ import (
 // transmitted image size. The terminal still scales the image into c×r cells.
 const transmitCellPx = 12
 
+// maxKittyID is the largest image id that fits the placeholder cell's 24-bit
+// foreground encoding without spending a diacritic on a non-zero top byte.
+const maxKittyID = 0xFFFFFF
+
 // KittyStore tracks Kitty image ids per photo and their transmission state.
 // It is owned by the root model and shared with KittyRenderer.
 type KittyStore struct {
@@ -23,12 +28,17 @@ type KittyStore struct {
 	next        uint32
 }
 
-// NewKittyStore returns an empty store. Ids start at 1 (Kitty ids are positive).
+// NewKittyStore returns an empty store. Numbering starts at a random point in
+// the 24-bit id space rather than at 1: the terminal keeps the placements of a
+// process that has exited, and iTerm2 resolves a placeholder to the first
+// placement it holds under that id, so a run numbering from 1 draws the photos
+// of the previous run in the same tab (#259). A random start also keeps us out
+// of the way of other programs sharing the terminal.
 func NewKittyStore() *KittyStore {
 	return &KittyStore{
 		idByPhoto:   make(map[int64]uint32),
 		colsByPhoto: make(map[int64]int),
-		next:        1,
+		next:        1 + rand.Uint32N(maxKittyID),
 	}
 }
 
@@ -40,7 +50,7 @@ func (s *KittyStore) IDFor(photoID int64) uint32 {
 	}
 	id := s.next
 	s.next++
-	if s.next > 0xFFFFFF {
+	if s.next > maxKittyID {
 		s.next = 1 // wrap; a TUI session will not hold 16M distinct photos
 	}
 	s.idByPhoto[photoID] = id

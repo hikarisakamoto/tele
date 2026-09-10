@@ -27,6 +27,24 @@ func TestKittyStore_IDForStableAndMonotonic(t *testing.T) {
 	require.Greater(t, a, uint32(0), "ids are positive")
 }
 
+// TestKittyStore_IDsStartSomewhereRandom guards against two runs handing the
+// same terminal the same image ids. A terminal keeps the placements of a
+// process that has exited, and iTerm2 resolves a placeholder to the first
+// placement carrying that id, so a fresh run numbering from 1 draws the
+// previous run's photos (#259).
+func TestKittyStore_IDsStartSomewhereRandom(t *testing.T) {
+	const stores = 8
+
+	first := make(map[uint32]int, stores)
+	for range stores {
+		id := media.NewKittyStore().IDFor(100)
+		require.LessOrEqual(t, id, uint32(0xFFFFFF), "ids fit the placeholder's 24-bit encoding")
+		require.Greater(t, id, uint32(0), "ids are positive")
+		first[id]++
+	}
+	require.Greater(t, len(first), 1, "stores do not all start at the same id")
+}
+
 func TestKittyStore_ReadyTracksTransmission(t *testing.T) {
 	s := media.NewKittyStore()
 	require.False(t, s.Ready(100, 30))
