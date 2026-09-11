@@ -26,6 +26,12 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
   alternated between five minutes of silence and a burst of backlog arriving at
   once. The cooldown is now ignored and the number of catch-up requests in
   flight is capped instead.
+- Typing in the composer stays readable when the terminal switches between a
+  light and a dark scheme. The text area held on to the colours of the scheme it
+  started in, so a switch to light put dark text on a dark cursor line, and a
+  theme with a light canvas of its own hit the same thing in reverse on the way
+  back to dark. The composer now takes its palette from whatever is painted
+  behind it rather than from the scheme that was in effect at startup.
 - Photos draw in iTerm2. Every placeholder cell now names the image id in full,
   including the top byte the specification lets a sender leave out. iTerm2 read
   the missing byte as `0xff`, looked for an image nobody had sent, and left the
