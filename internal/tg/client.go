@@ -136,6 +136,12 @@ func (c *GotdClient) Connect(ctx context.Context, cfg *config.Config, af *AuthFl
 			c.log.Error("channel state could not be loaded; it will receive no updates this session",
 				zap.Int64("channel_id", channelID))
 		},
+		// channelDiffAPI below strips the server-side cooldown that used to space
+		// out getChannelDifference, so bound the calls in flight here instead
+		// (#266). Every tracked channel asks for its difference at startup and
+		// again on every gap; unbounded, that is one burst per channel against a
+		// per-account method rate limit.
+		MaxChannelDifferenceConcurrency: maxChannelDiffConcurrency,
 	}
 	// Persist channel access hashes so channels are re-registered at startup and
 	// UpdateChannelTooLong after a long idle is acted upon instead of dropped
@@ -266,7 +272,7 @@ func (c *GotdClient) Connect(ctx context.Context, cfg *config.Config, af *AuthFl
 		c.api = tc.API()
 		c.mu.Unlock()
 
-		return manager.Run(ctx, tc.API(), self.ID, updates.AuthOptions{
+		return manager.Run(ctx, newChannelDiffAPI(tc.API(), c.log), self.ID, updates.AuthOptions{
 			OnStart: func(ctx context.Context) {
 				c.log.Debug("updates manager started, signalling ready")
 				close(readyCh)

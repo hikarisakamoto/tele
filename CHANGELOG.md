@@ -19,6 +19,13 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ### Fixed
 
+- A busy group no longer goes quiet for five minutes at a time. Telegram
+  attaches a cooldown to every catch-up request, and the update library read it
+  as a ban on asking again, discarding everything the group received until it
+  ran out. Each catch-up armed a fresh cooldown, so an active supergroup
+  alternated between five minutes of silence and a burst of backlog arriving at
+  once. The cooldown is now ignored and the number of catch-up requests in
+  flight is capped instead.
 - Photos draw in iTerm2. Every placeholder cell now names the image id in full,
   including the top byte the specification lets a sender leave out. iTerm2 read
   the missing byte as `0xff`, looked for an image nobody had sent, and left the
