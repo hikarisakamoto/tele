@@ -11,6 +11,8 @@ Older releases are at <https://github.com/sorokin-vladimir/tele/releases>.
 
 ## [Unreleased]
 
+## [1.11.5] - 2026-09-11
+
 ### Added
 
 - iTerm2 3.7.0 and newer gets inline photos at full quality instead of block
